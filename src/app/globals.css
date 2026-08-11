@@ -1,0 +1,243 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-p3: var(--p3);
+  --color-p2: var(--p2);
+  --color-p1: var(--p1);
+  --color-p0: var(--p0);
+  --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+/*
+ * Dark is default, and true black — every pixel in the background is off,
+ * not just dark, which is the point on an OLED panel. Surfaces are lifted
+ * just enough off #000 to read as separate layers without turning into the
+ * old navy-gray.
+ */
+:root {
+  --bg: #000000;
+  --surface: #0a0a0d;
+  --raised: #131318;
+  --line: #232329;
+  --ink: #f5f5f7;
+  --muted: #9a9aa5;
+  --faint: #58585f;
+  --accent: #10b981;
+  --accent-soft: rgba(16, 185, 129, 0.16);
+  --p3: #f43f5e;
+  --p2: #f59e0b;
+  --p1: #38bdf8;
+  --p0: #6b7280;
+  --glass-bg: rgba(10, 10, 13, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glow-accent: rgba(16, 185, 129, 0.18);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #faf8ff;
+    --surface: #ffffff;
+    --raised: #f2f3ff;
+    --line: #eaedff;
+    --ink: #131b2e;
+    --muted: #3c4a42;
+    --faint: #6c7a71;
+    --accent: #006c49;
+    --accent-soft: rgba(0, 108, 73, 0.1);
+    --p3: #ba1a1a;
+    --p2: #d97706;
+    --p1: #0284c7;
+    --p0: #9ca3af;
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.04);
+    --glow-accent: rgba(0, 108, 73, 0.12);
+  }
+}
+
+:root[data-theme="light"] {
+  --bg: #faf8ff;
+  --surface: #ffffff;
+  --raised: #f2f3ff;
+  --line: #eaedff;
+  --ink: #131b2e;
+  --muted: #3c4a42;
+  --faint: #6c7a71;
+  --accent: #006c49;
+  --accent-soft: rgba(0, 108, 73, 0.1);
+  --p3: #ba1a1a;
+  --p2: #d97706;
+  --p1: #0284c7;
+  --p0: #9ca3af;
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(0, 0, 0, 0.04);
+  --glow-accent: rgba(0, 108, 73, 0.12);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--line);
+  border-radius: 10px;
+  border: 4px solid var(--bg);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--faint);
+}
+
+/* Utilities */
+.focus-ring {
+  @apply outline-none ring-2 ring-accent/60 ring-offset-2 ring-offset-bg shadow-[0_0_16px_rgba(124,115,246,0.25)];
+  transition: box-shadow 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+.kbd-shortcut {
+  @apply rounded border border-line/60 bg-raised/50 px-1.5 py-0.5 text-[10px] font-semibold text-faint shadow-[0_2px_0_0_rgba(0,0,0,0.1)] font-mono;
+}
+
+/* Glassmorphism utility */
+.glass-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px -12px rgba(0, 0, 0, 0.1);
+}
+
+.hover-lift {
+  @apply transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px];
+}
+
+@keyframes reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-reveal {
+  animation: reveal 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: top;
+}
+
+/* Priority dot glow shadows */
+.priority-dot-3 {
+  box-shadow: 0 0 10px rgba(244, 63, 94, 0.4);
+}
+.priority-dot-2 {
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.4);
+}
+.priority-dot-1 {
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.4);
+}
+
+/* Completed rows animate out instead of vanishing. */
+@keyframes settle {
+  to {
+    opacity: 0;
+    transform: translateX(12px) scale(0.97);
+    max-height: 0;
+    margin-bottom: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+}
+
+.is-settling {
+  animation: settle 380ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.rise {
+  animation: rise 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { 
+    opacity: 1; 
+    transform: scale(1);
+    box-shadow: 0 0 0px 0px var(--accent-soft);
+  }
+  50% { 
+    opacity: 0.85; 
+    transform: scale(1.05);
+    box-shadow: 0 0 12px 2px var(--accent-soft);
+  }
+}
+
+.pulse-flame {
+  animation: pulse-subtle 2s infinite ease-in-out;
+}
+
+/* Timeline Connector */
+.timeline-line::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 24px;
+  bottom: -24px;
+  width: 1px;
+  background-color: var(--line); 
+  z-index: 0;
+}
+.timeline-line:last-child::before {
+  display: none;
+}
+
+/* Priority Dots */
+.priority-critical { background-color: #EF4444; box-shadow: 0 0 8px rgba(239,68,68,0.5); }
+.priority-high { background-color: #F59E0B; box-shadow: 0 0 8px rgba(245,158,11,0.4); }
+.priority-normal { background-color: #94A3B8; }
+.priority-low { border: 1px solid rgba(148, 163, 184, 0.4); }
+
+/* LeetCode Difficulty */
+.lc-hard { color: #EF4444; }
+.lc-medium { color: #F59E0B; }
+.lc-easy { color: #10b981; }
+
+@media (prefers-reduced-motion: reduce) {
+  .is-settling,
+  .rise,
+  .pulse-flame {
+    animation-duration: 1ms !important;
+  }
+}
+

@@ -1,0 +1,25 @@
+services:
+  db:
+    image: postgres:16
+    container_name: ember-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: tasks
+    ports:
+      # 5432 on this machine is already taken by a native Postgres install.
+      # Host port only; nothing inside the container changes.
+      - "5434:5432"
+    volumes:
+      # Key stays tasklog-data on purpose: renaming it here would make Compose
+      # look for a different named volume and start empty, orphaning the real
+      # data. Cosmetic only above this line; nothing storage-related below it.
+      - tasklog-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tasks"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  tasklog-data:

@@ -1,0 +1,8 @@
+node_modules
+.next
+.env
+mcp/dist
+*.tsbuildinfo
+
+# clerk configuration (can include secrets)
+/.clerk/
