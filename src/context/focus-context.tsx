@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { soundscape, type SoundscapeType } from "@/lib/audio-synthesizer";
 
 export type Phase = "focus" | "short_break" | "long_break";
@@ -102,7 +102,6 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       interval = setInterval(() => {
         setSecondsLeft((prev) => {
           if (prev <= 1) {
-            // Beep and advance phase
             beep();
             let nextP: Phase = "focus";
             if (phase === "focus") {
@@ -160,59 +159,73 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }
 
-  function startSession(task?: ActiveTaskInfo, p: Phase = "focus") {
+  const startSession = useCallback((task?: ActiveTaskInfo, p: Phase = "focus") => {
     if (task) setActiveTaskState(task);
     setPhase(p);
     setSecondsLeft(DURATIONS[p]);
     setRunning(true);
-  }
+  }, []);
 
-  function pauseSession() {
+  const pauseSession = useCallback(() => {
     setRunning(false);
-  }
+  }, []);
 
-  function resumeSession() {
+  const resumeSession = useCallback(() => {
     setRunning(true);
-  }
+  }, []);
 
-  function toggleSession() {
+  const toggleSession = useCallback(() => {
     setRunning((r) => !r);
-  }
+  }, []);
 
-  function resetSession() {
+  const resetSession = useCallback(() => {
     setRunning(false);
-    setSecondsLeft(DURATIONS[phase]);
-  }
+    setSecondsLeft((prev) => prev);
+  }, []);
 
-  function switchPhase(p: Phase) {
+  const switchPhase = useCallback((p: Phase) => {
     setRunning(false);
     setPhase(p);
     setSecondsLeft(DURATIONS[p]);
-  }
+  }, []);
 
-  function skipPhase() {
-    let nextP: Phase = "focus";
-    if (phase === "focus") {
-      const newCount = focusCount + 1;
-      setFocusCount(newCount);
-      nextP = newCount % 4 === 0 ? "long_break" : "short_break";
-    } else {
-      nextP = "focus";
-    }
-    setPhase(nextP);
-    setSecondsLeft(DURATIONS[nextP]);
+  const skipPhase = useCallback(() => {
+    setPhase((currentP) => {
+      let nextP: Phase = "focus";
+      if (currentP === "focus") {
+        setFocusCount((c) => {
+          const newCount = c + 1;
+          nextP = newCount % 4 === 0 ? "long_break" : "short_break";
+          return newCount;
+        });
+      } else {
+        nextP = "focus";
+      }
+      setSecondsLeft(DURATIONS[nextP]);
+      return nextP;
+    });
     setRunning(false);
-  }
+  }, []);
 
-  function setActiveTask(task: ActiveTaskInfo | null) {
-    setActiveTaskState(task);
-  }
+  const setActiveTask = useCallback((task: ActiveTaskInfo | null) => {
+    setActiveTaskState((prev) => {
+      if (
+        prev?.id === task?.id &&
+        prev?.title === task?.title &&
+        prev?.notes === task?.notes &&
+        prev?.priority === task?.priority
+      ) {
+        return prev;
+      }
+      return task;
+    });
+  }, []);
 
-  function toggleAudio(type: SoundscapeType) {
+  const toggleAudio = useCallback((type: SoundscapeType) => {
     const isNowPlaying = soundscape.toggle(type);
     setAudioPlaying(isNowPlaying);
     setActiveAudioType(type);
-  }
+  }, []);
 
   return (
     <FocusContext.Provider

@@ -26,13 +26,15 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
-    setActiveTask({
-      id: task.id,
-      title: task.title,
-      notes: task.notes,
-      priority: task.priority,
-    });
-  }, [task, setActiveTask]);
+    if (task) {
+      setActiveTask({
+        id: task.id,
+        title: task.title,
+        notes: task.notes,
+        priority: task.priority,
+      });
+    }
+  }, [task.id, task.title, task.notes, task.priority, setActiveTask]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
