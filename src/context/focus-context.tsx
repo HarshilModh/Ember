@@ -3,18 +3,20 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { soundscape, type SoundscapeType } from "@/lib/audio-synthesizer";
 
-export type Phase = "focus" | "short_break" | "long_break";
+export type Phase = "focus" | "short_break" | "long_break" | "custom";
 
 export const DURATIONS: Record<Phase, number> = {
   focus: 25 * 60,
   short_break: 5 * 60,
   long_break: 15 * 60,
+  custom: 45 * 60,
 };
 
 export const PHASE_LABEL: Record<Phase, string> = {
   focus: "Deep Focus",
   short_break: "Short Break",
   long_break: "Long Break",
+  custom: "Custom Focus",
 };
 
 interface ActiveTaskInfo {
@@ -27,6 +29,7 @@ interface ActiveTaskInfo {
 interface FocusContextType {
   phase: Phase;
   secondsLeft: number;
+  totalDuration: number;
   running: boolean;
   focusCount: number;
   activeTask: ActiveTaskInfo | null;
@@ -39,6 +42,7 @@ interface FocusContextType {
   resetSession: () => void;
   skipPhase: () => void;
   switchPhase: (p: Phase) => void;
+  setCustomTimer: (minutes: number) => void;
   setActiveTask: (task: ActiveTaskInfo | null) => void;
   toggleAudio: (type: SoundscapeType) => void;
 }
@@ -50,6 +54,7 @@ const STORAGE_KEY = "ember_focus_session_v1";
 interface SavedSession {
   phase: Phase;
   secondsLeft: number;
+  totalDuration: number;
   running: boolean;
   lastUpdated: number;
   focusCount: number;
@@ -59,6 +64,7 @@ interface SavedSession {
 export function FocusProvider({ children }: { children: React.ReactNode }) {
   const [phase, setPhase] = useState<Phase>("focus");
   const [secondsLeft, setSecondsLeft] = useState(DURATIONS.focus);
+  const [totalDuration, setTotalDuration] = useState(DURATIONS.focus);
   const [running, setRunning] = useState(false);
   const [focusCount, setFocusCount] = useState(0);
   const [activeTask, setActiveTaskState] = useState<ActiveTaskInfo | null>(null);
@@ -72,13 +78,17 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const data: SavedSession = JSON.parse(raw);
-        setPhase(data.phase || "focus");
+        const savedPhase = data.phase || "focus";
+        const savedTotal = data.totalDuration || DURATIONS[savedPhase] || DURATIONS.focus;
+
+        setPhase(savedPhase);
+        setTotalDuration(savedTotal);
         setFocusCount(data.focusCount || 0);
         setActiveTaskState(data.activeTask || null);
 
         if (data.running && data.lastUpdated) {
           const elapsed = Math.floor((Date.now() - data.lastUpdated) / 1000);
-          const remaining = (data.secondsLeft || DURATIONS[data.phase || "focus"]) - elapsed;
+          const remaining = (data.secondsLeft || savedTotal) - elapsed;
           if (remaining > 0) {
             setSecondsLeft(remaining);
             setRunning(true);
@@ -87,7 +97,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
             setRunning(false);
           }
         } else {
-          setSecondsLeft(data.secondsLeft ?? DURATIONS[data.phase || "focus"]);
+          setSecondsLeft(data.secondsLeft ?? savedTotal);
           setRunning(false);
         }
       }
@@ -104,7 +114,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
           if (prev <= 1) {
             beep();
             let nextP: Phase = "focus";
-            if (phase === "focus") {
+            if (phase === "focus" || phase === "custom") {
               const newCount = focusCount + 1;
               setFocusCount(newCount);
               nextP = newCount % 4 === 0 ? "long_break" : "short_break";
@@ -112,6 +122,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
               nextP = "focus";
             }
             setPhase(nextP);
+            setTotalDuration(DURATIONS[nextP]);
             setRunning(false);
             return DURATIONS[nextP];
           }
@@ -125,6 +136,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       const stateToSave: SavedSession = {
         phase,
         secondsLeft,
+        totalDuration,
         running,
         lastUpdated: Date.now(),
         focusCount,
@@ -136,7 +148,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [running, phase, secondsLeft, focusCount, activeTask]);
+  }, [running, phase, secondsLeft, totalDuration, focusCount, activeTask]);
 
   function beep() {
     try {
@@ -161,8 +173,10 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
   const startSession = useCallback((task?: ActiveTaskInfo, p: Phase = "focus") => {
     if (task) setActiveTaskState(task);
+    const dur = DURATIONS[p];
     setPhase(p);
-    setSecondsLeft(DURATIONS[p]);
+    setTotalDuration(dur);
+    setSecondsLeft(dur);
     setRunning(true);
   }, []);
 
@@ -180,19 +194,29 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
   const resetSession = useCallback(() => {
     setRunning(false);
-    setSecondsLeft((prev) => prev);
-  }, []);
+    setSecondsLeft(totalDuration);
+  }, [totalDuration]);
 
   const switchPhase = useCallback((p: Phase) => {
+    const dur = DURATIONS[p];
     setRunning(false);
     setPhase(p);
-    setSecondsLeft(DURATIONS[p]);
+    setTotalDuration(dur);
+    setSecondsLeft(dur);
+  }, []);
+
+  const setCustomTimer = useCallback((minutes: number) => {
+    const secs = Math.max(1, Math.min(180, minutes)) * 60;
+    setRunning(false);
+    setPhase("custom");
+    setTotalDuration(secs);
+    setSecondsLeft(secs);
   }, []);
 
   const skipPhase = useCallback(() => {
     setPhase((currentP) => {
       let nextP: Phase = "focus";
-      if (currentP === "focus") {
+      if (currentP === "focus" || currentP === "custom") {
         setFocusCount((c) => {
           const newCount = c + 1;
           nextP = newCount % 4 === 0 ? "long_break" : "short_break";
@@ -201,6 +225,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       } else {
         nextP = "focus";
       }
+      setTotalDuration(DURATIONS[nextP]);
       setSecondsLeft(DURATIONS[nextP]);
       return nextP;
     });
@@ -232,6 +257,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
       value={{
         phase,
         secondsLeft,
+        totalDuration,
         running,
         focusCount,
         activeTask,
@@ -244,6 +270,7 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
         resetSession,
         skipPhase,
         switchPhase,
+        setCustomTimer,
         setActiveTask,
         toggleAudio,
       }}

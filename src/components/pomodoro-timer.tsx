@@ -10,29 +10,37 @@ import {
   Zap,
   Coffee,
   Sun,
+  Sliders,
+  Check,
 } from "lucide-react";
 import { randomQuote, type QuoteItem } from "@/lib/quotes";
 import { AmbientSoundscapePlayer } from "./ambient-soundscape";
-import { useFocus, DURATIONS, PHASE_LABEL, type Phase } from "@/context/focus-context";
+import { useFocus, PHASE_LABEL, type Phase } from "@/context/focus-context";
+
+const PRESET_MINUTES = [10, 15, 25, 45, 60, 90];
 
 export function PomodoroTimer() {
   const {
     phase,
     secondsLeft,
+    totalDuration,
     running,
     focusCount,
     toggleSession,
     resetSession,
     skipPhase,
     switchPhase,
+    setCustomTimer,
   } = useFocus();
 
   const [quote] = useState<QuoteItem>(() => randomQuote());
+  const [showCustomInput, setShowCustomInput] = useState(false);
+  const [customInputVal, setCustomInputVal] = useState("45");
 
   const mm = String(Math.floor(Math.max(0, secondsLeft) / 60)).padStart(2, "0");
   const ss = String(Math.max(0, secondsLeft) % 60).padStart(2, "0");
-  const progressRatio = 1 - Math.max(0, secondsLeft) / DURATIONS[phase];
-  const onBreak = phase !== "focus";
+  const progressRatio = totalDuration > 0 ? 1 - Math.max(0, secondsLeft) / totalDuration : 0;
+  const onBreak = phase === "short_break" || phase === "long_break";
 
   // Session milestone counter (1..4)
   const sessionInCycle = (focusCount % 4) + 1;
@@ -41,6 +49,12 @@ export function PomodoroTimer() {
   const radius = 100;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progressRatio);
+
+  function handleSetCustomMinutes(mins: number) {
+    if (isNaN(mins) || mins <= 0) return;
+    setCustomTimer(mins);
+    setShowCustomInput(false);
+  }
 
   return (
     <div className="relative overflow-hidden rounded-3xl border border-line/80 bg-gradient-to-b from-surface via-surface/90 to-surface-container/40 p-6 sm:p-8 shadow-sm flex flex-col items-center gap-6">
@@ -55,9 +69,10 @@ export function PomodoroTimer() {
         }`}
       />
 
-      {/* Top Header: Phase Selector Pills */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between w-full gap-3 border-b border-line/50 pb-4">
-        <div className="flex items-center gap-1.5 bg-raised/70 p-1 rounded-2xl border border-line/40">
+      {/* Top Header: Phase Selector & Custom Time Controls */}
+      <div className="relative z-10 flex flex-col sm:flex-row items-center justify-between w-full gap-3 border-b border-line/50 pb-4">
+        {/* Phase Pills */}
+        <div className="flex items-center gap-1.5 bg-raised/70 p-1 rounded-2xl border border-line/40 overflow-x-auto no-scrollbar max-w-full">
           {(["focus", "short_break", "long_break"] as Phase[]).map((p) => {
             const active = phase === p;
             return (
@@ -65,7 +80,7 @@ export function PomodoroTimer() {
                 key={p}
                 type="button"
                 onClick={() => switchPhase(p)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 whitespace-nowrap ${
                   active
                     ? p === "focus"
                       ? "bg-accent text-white shadow-xs"
@@ -84,10 +99,24 @@ export function PomodoroTimer() {
               </button>
             );
           })}
+
+          {/* Custom Time Toggle Pill */}
+          <button
+            type="button"
+            onClick={() => setShowCustomInput(!showCustomInput)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 whitespace-nowrap ${
+              phase === "custom" || showCustomInput
+                ? "bg-emerald-600 text-white shadow-xs"
+                : "text-muted hover:text-ink hover:bg-surface"
+            }`}
+          >
+            <Sliders className="size-3.5" />
+            <span>Custom Time</span>
+          </button>
         </div>
 
         {/* Milestone Streak Dots */}
-        <div className="flex items-center gap-1.5 text-xs font-bold text-muted bg-raised/50 px-3 py-1.5 rounded-xl border border-line/40">
+        <div className="flex items-center gap-1.5 text-xs font-bold text-muted bg-raised/50 px-3 py-1.5 rounded-xl border border-line/40 shrink-0">
           <Flame className="size-4 text-amber-500 fill-amber-500/20" />
           <span>Session {sessionInCycle}/4</span>
           <div className="flex gap-1 ml-1">
@@ -104,6 +133,56 @@ export function PomodoroTimer() {
           </div>
         </div>
       </div>
+
+      {/* Custom Duration Presets Toolbar (When Custom Time clicked) */}
+      {showCustomInput && (
+        <div className="relative z-10 w-full bg-raised/80 border border-line/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 animate-reveal">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs font-bold text-muted mr-1">Presets:</span>
+            {PRESET_MINUTES.map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => handleSetCustomMinutes(m)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                  Math.round(totalDuration / 60) === m && phase === "custom"
+                    ? "bg-accent text-white border-accent"
+                    : "bg-surface text-ink border-line/50 hover:bg-surface-container"
+                }`}
+              >
+                {m}m
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Minute Direct Input */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSetCustomMinutes(parseInt(customInputVal, 10));
+            }}
+            className="flex items-center gap-2 w-full sm:w-auto"
+          >
+            <input
+              type="number"
+              min="1"
+              max="180"
+              value={customInputVal}
+              onChange={(e) => setCustomInputVal(e.target.value)}
+              placeholder="Mins"
+              className="w-20 rounded-xl border border-line/80 bg-surface px-3 py-1 text-xs font-mono font-bold text-ink outline-none focus:border-accent"
+            />
+            <span className="text-xs font-bold text-faint">min</span>
+            <button
+              type="submit"
+              className="px-3 py-1 bg-accent text-white font-bold text-xs rounded-xl hover:opacity-90 transition-all flex items-center gap-1"
+            >
+              <Check className="size-3" />
+              Set
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* SVG Radial Ring & Timer Centerpiece */}
       <div className="relative z-10 grid place-items-center my-2">
@@ -140,10 +219,10 @@ export function PomodoroTimer() {
             {running ? (
               <>
                 <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-                Flow Active
+                Flow Active ({Math.round(totalDuration / 60)}m)
               </>
             ) : (
-              "Paused"
+              `Paused (${Math.round(totalDuration / 60)}m)`
             )}
           </span>
         </div>
