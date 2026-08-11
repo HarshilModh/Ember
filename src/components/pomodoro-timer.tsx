@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Play,
   Pause,
@@ -12,6 +12,7 @@ import {
   Sun,
   Sliders,
   Check,
+  Sparkles,
 } from "lucide-react";
 import { randomQuote, type QuoteItem } from "@/lib/quotes";
 import { AmbientSoundscapePlayer } from "./ambient-soundscape";
@@ -19,7 +20,7 @@ import { useFocus, PHASE_LABEL, type Phase } from "@/context/focus-context";
 
 const PRESET_MINUTES = [10, 15, 25, 45, 60, 90];
 
-export function PomodoroTimer() {
+export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
   const {
     phase,
     secondsLeft,
@@ -33,9 +34,27 @@ export function PomodoroTimer() {
     setCustomTimer,
   } = useFocus();
 
-  const [quote] = useState<QuoteItem>(() => randomQuote());
+  const [quote, setQuote] = useState<QuoteItem>(() => randomQuote());
   const [showCustomInput, setShowCustomInput] = useState(false);
   const [customInputVal, setCustomInputVal] = useState("45");
+
+  // Keyboard shortcuts listener for Space (Pause/Play), R (Reset), S (Skip)
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const activeEl = document.activeElement;
+      if (activeEl && (activeEl.tagName === "INPUT" || activeEl.tagName === "TEXTAREA")) {
+        return;
+      }
+      if (e.code === "Space") {
+        e.preventDefault();
+        toggleSession();
+      } else if (e.key === "r" || e.key === "R") {
+        resetSession();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleSession, resetSession]);
 
   const mm = String(Math.floor(Math.max(0, secondsLeft) / 60)).padStart(2, "0");
   const ss = String(Math.max(0, secondsLeft) % 60).padStart(2, "0");
@@ -46,7 +65,7 @@ export function PomodoroTimer() {
   const sessionInCycle = (focusCount % 4) + 1;
 
   // SVG Radial Ring Calculation
-  const radius = 100;
+  const radius = isZen ? 120 : 104;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progressRatio);
 
@@ -57,14 +76,18 @@ export function PomodoroTimer() {
   }
 
   return (
-    <div className="relative overflow-hidden rounded-3xl border border-line/80 bg-gradient-to-b from-surface via-surface/90 to-surface-container/40 p-6 sm:p-8 shadow-sm flex flex-col items-center gap-6">
-      {/* Dynamic Background Aura */}
+    <div
+      className={`relative overflow-hidden rounded-3xl border border-line/80 bg-gradient-to-b from-surface via-surface/95 to-surface-container/50 p-6 sm:p-8 shadow-sm flex flex-col items-center gap-6 transition-all ${
+        isZen ? "max-w-2xl mx-auto py-12" : ""
+      }`}
+    >
+      {/* Ambient Glowing Background Orb */}
       <div
-        className={`absolute -top-32 -right-32 size-64 rounded-full blur-3xl transition-all duration-700 pointer-events-none ${
+        className={`absolute -top-32 -right-32 size-72 rounded-full blur-3xl transition-all duration-1000 pointer-events-none ${
           running
             ? onBreak
-              ? "bg-amber-500/20"
-              : "bg-emerald-500/25 scale-125"
+              ? "bg-amber-500/20 shadow-[0_0_80px_rgba(245,158,11,0.3)]"
+              : "bg-emerald-500/30 scale-125 shadow-[0_0_100px_rgba(16,185,129,0.35)]"
             : "bg-accent/10"
         }`}
       />
@@ -125,7 +148,7 @@ export function PomodoroTimer() {
                 key={i}
                 className={`size-2 rounded-full transition-all ${
                   i <= sessionInCycle
-                    ? "bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.6)]"
+                    ? "bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]"
                     : "bg-line/80"
                 }`}
               />
@@ -136,7 +159,7 @@ export function PomodoroTimer() {
 
       {/* Custom Duration Presets Toolbar (When Custom Time clicked) */}
       {showCustomInput && (
-        <div className="relative z-10 w-full bg-raised/80 border border-line/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 animate-reveal">
+        <div className="relative z-10 w-full bg-raised/90 border border-line/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 animate-reveal shadow-2xs">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-xs font-bold text-muted mr-1">Presets:</span>
             {PRESET_MINUTES.map((m) => (
@@ -144,9 +167,9 @@ export function PomodoroTimer() {
                 key={m}
                 type="button"
                 onClick={() => handleSetCustomMinutes(m)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
                   Math.round(totalDuration / 60) === m && phase === "custom"
-                    ? "bg-accent text-white border-accent"
+                    ? "bg-accent text-white border-accent shadow-xs"
                     : "bg-surface text-ink border-line/50 hover:bg-surface-container"
                 }`}
               >
@@ -170,14 +193,14 @@ export function PomodoroTimer() {
               value={customInputVal}
               onChange={(e) => setCustomInputVal(e.target.value)}
               placeholder="Mins"
-              className="w-20 rounded-xl border border-line/80 bg-surface px-3 py-1 text-xs font-mono font-bold text-ink outline-none focus:border-accent"
+              className="w-20 rounded-xl border border-line/80 bg-surface px-3 py-1.5 text-xs font-mono font-bold text-ink outline-none focus:border-accent"
             />
             <span className="text-xs font-bold text-faint">min</span>
             <button
               type="submit"
-              className="px-3 py-1 bg-accent text-white font-bold text-xs rounded-xl hover:opacity-90 transition-all flex items-center gap-1"
+              className="px-3.5 py-1.5 bg-accent text-white font-bold text-xs rounded-xl hover:opacity-90 transition-all flex items-center gap-1 shadow-xs"
             >
-              <Check className="size-3" />
+              <Check className="size-3.5" />
               Set
             </button>
           </form>
@@ -185,24 +208,33 @@ export function PomodoroTimer() {
       )}
 
       {/* SVG Radial Ring & Timer Centerpiece */}
-      <div className="relative z-10 grid place-items-center my-2">
-        <svg className="size-64 sm:size-72 -rotate-90 transform" viewBox="0 0 240 240">
+      <div className="relative z-10 grid place-items-center my-3">
+        <svg
+          className={`${
+            isZen ? "size-72 sm:size-80" : "size-64 sm:size-72"
+          } -rotate-90 transform drop-shadow-md`}
+          viewBox="0 0 260 260"
+        >
+          {/* Outer Track Ring */}
           <circle
-            cx="120"
-            cy="120"
+            cx="130"
+            cy="130"
             r={radius}
             className="stroke-line/40"
-            strokeWidth="10"
+            strokeWidth="12"
             fill="transparent"
           />
+          {/* Glow Progress Ring */}
           <circle
-            cx="120"
-            cy="120"
+            cx="130"
+            cy="130"
             r={radius}
             className={`transition-all duration-1000 ease-linear ${
-              onBreak ? "stroke-amber-500" : "stroke-accent"
+              onBreak
+                ? "stroke-amber-500 drop-shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                : "stroke-accent drop-shadow-[0_0_14px_rgba(16,185,129,0.5)]"
             }`}
-            strokeWidth="10"
+            strokeWidth="12"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -212,17 +244,22 @@ export function PomodoroTimer() {
 
         {/* Inner Readout */}
         <div className="absolute flex flex-col items-center justify-center text-center">
-          <div className="text-5xl sm:text-6xl font-extrabold font-mono tracking-tight text-ink tabular-nums">
+          <div className="text-6xl sm:text-7xl font-black font-mono tracking-tight text-ink tabular-nums drop-shadow-xs">
             {mm}:{ss}
           </div>
-          <span className="mt-1 text-xs font-bold uppercase tracking-widest text-muted flex items-center gap-1">
+          <span className="mt-2 text-xs font-extrabold uppercase tracking-widest text-muted flex items-center gap-1.5 bg-raised/60 px-3 py-1 rounded-full border border-line/40">
             {running ? (
               <>
                 <span className="size-2 rounded-full bg-emerald-500 animate-ping" />
-                Flow Active ({Math.round(totalDuration / 60)}m)
+                <span className="text-emerald-500">Flow Active</span>
+                <span className="text-faint">({Math.round(totalDuration / 60)}m)</span>
               </>
             ) : (
-              `Paused (${Math.round(totalDuration / 60)}m)`
+              <>
+                <span className="size-2 rounded-full bg-amber-500" />
+                <span>Paused</span>
+                <span className="text-faint">({Math.round(totalDuration / 60)}m)</span>
+              </>
             )}
           </span>
         </div>
@@ -230,20 +267,23 @@ export function PomodoroTimer() {
 
       {/* Break Quote Card */}
       {onBreak && (
-        <div className="relative z-10 max-w-md text-center p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-ink">
-          "{quote.text}" — <span className="text-muted">{quote.who}</span>
+        <div className="relative z-10 max-w-md text-center p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs font-semibold text-ink flex items-center gap-2">
+          <Sparkles className="size-4 text-amber-500 shrink-0" />
+          <span>
+            "{quote.text}" — <span className="text-muted">{quote.who}</span>
+          </span>
         </div>
       )}
 
-      {/* Controls Bar */}
-      <div className="relative z-10 flex items-center justify-center gap-3 w-full border-t border-line/40 pt-5">
+      {/* Main Controls Toolbar */}
+      <div className="relative z-10 flex flex-wrap items-center justify-center gap-3 w-full border-t border-line/40 pt-5">
         <button
           type="button"
           onClick={toggleSession}
-          className={`flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-95 shadow-md ${
+          className={`flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-extrabold text-white transition-all active:scale-95 shadow-md ${
             running
               ? "bg-amber-600 hover:bg-amber-500"
-              : "bg-accent hover:opacity-90 shadow-accent/20"
+              : "bg-accent hover:opacity-90 shadow-accent/25"
           }`}
         >
           {running ? <Pause className="size-5" /> : <Play className="size-5 fill-current ml-0.5" />}
@@ -252,7 +292,7 @@ export function PomodoroTimer() {
 
         <button
           type="button"
-          title="Reset timer"
+          title="Reset timer (Press R)"
           onClick={resetSession}
           className="p-3.5 rounded-2xl border border-line/80 bg-raised/70 text-muted hover:text-ink hover:bg-raised transition-all active:scale-95"
         >
@@ -269,7 +309,7 @@ export function PomodoroTimer() {
         </button>
       </div>
 
-      {/* Embedded Ambient Soundscape Controls */}
+      {/* Embedded Ambient Soundscape Toolbar */}
       <div className="relative z-10 w-full pt-2">
         <AmbientSoundscapePlayer />
       </div>

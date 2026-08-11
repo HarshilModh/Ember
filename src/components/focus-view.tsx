@@ -6,23 +6,26 @@ import { addLog, completeAndLeaveFocus } from "@/app/actions";
 import { PomodoroTimer } from "@/components/pomodoro-timer";
 import type { Log, Task } from "@/db/schema";
 import { PRIORITY_COLORS, PRIORITY_LABELS, relativeDue } from "@/lib/format";
+import { useFocus } from "@/context/focus-context";
 import {
   CheckCircle2,
   ArrowLeft,
   Send,
   Clock,
   Sparkles,
-  Flame,
   Target,
   FileText,
+  Maximize2,
+  Minimize2,
+  Terminal,
+  Zap,
 } from "lucide-react";
-
-import { useFocus } from "@/context/focus-context";
 
 export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
   const router = useRouter();
   const { setActiveTask } = useFocus();
   const [note, setNote] = useState("");
+  const [isZen, setIsZen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -44,16 +47,20 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
         setNote("");
         return;
       }
+      if (isZen) {
+        setIsZen(false);
+        return;
+      }
       router.push("/");
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [router]);
+  }, [router, isZen]);
 
   return (
     <main className="grid min-h-dvh place-items-center px-4 py-8 sm:px-6 animate-reveal">
-      <div className="w-full max-w-2xl space-y-6">
-        {/* Top Back Navigation Bar */}
+      <div className={`w-full transition-all duration-300 ${isZen ? "max-w-4xl" : "max-w-2xl"} space-y-6`}>
+        {/* Navigation Toolbar */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => router.push("/")}
@@ -64,6 +71,16 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
           </button>
 
           <div className="flex items-center gap-2">
+            {/* Zen Mode Toggle */}
+            <button
+              onClick={() => setIsZen(!isZen)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-line/80 bg-surface/80 text-xs font-bold text-muted hover:text-ink transition-all active:scale-95"
+              title={isZen ? "Exit Zen Mode" : "Enter Zen Mode"}
+            >
+              {isZen ? <Minimize2 className="size-3.5 text-accent" /> : <Maximize2 className="size-3.5 text-accent" />}
+              <span>{isZen ? "Exit Zen" : "Zen View"}</span>
+            </button>
+
             <span className="text-xs font-bold text-emerald-500 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20 flex items-center gap-1.5">
               <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
               Focus Zone
@@ -102,7 +119,7 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
 
           {/* Circular SVG Pomodoro Timer & Audio HUD */}
           <div className="mt-6">
-            <PomodoroTimer />
+            <PomodoroTimer isZen={isZen} />
           </div>
 
           {/* Real-time Note Logger */}
@@ -118,7 +135,7 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
             <input
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="Record a thought, snippet, or milestone as you focus…"
+              placeholder="Record a thought, snippet, or milestone as you focus… (Enter to log)"
               className="min-w-0 flex-1 rounded-2xl border border-line/80 bg-raised px-4 py-3 text-xs sm:text-sm outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/15 transition-all"
             />
             <button
@@ -130,47 +147,53 @@ export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
             </button>
           </form>
 
-          {/* Session Notes Stream */}
+          {/* Session Notes Stream (Terminal Style) */}
           {logs.length > 0 && (
             <div className="mt-8 border-t border-line/60 pt-5 space-y-3">
               <h3 className="text-xs font-bold uppercase tracking-wider text-faint flex items-center gap-1.5">
-                <Sparkles className="size-3.5 text-accent" />
-                Session Real-time Stream
+                <Terminal className="size-3.5 text-accent" />
+                Session Real-time Stream ({logs.length})
               </h3>
-              <ul className="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <ul className="space-y-2 max-h-52 overflow-y-auto pr-1">
                 {logs.map((l) => (
                   <li
                     key={l.id}
-                    className="flex items-start gap-3 rounded-2xl bg-raised/50 p-3 text-xs border border-line/40 shadow-2xs"
+                    className="flex items-start gap-3 rounded-2xl bg-raised/60 p-3 text-xs border border-line/40 shadow-2xs font-mono"
                   >
-                    <time className="shrink-0 font-mono text-[10px] text-faint mt-0.5 bg-surface px-2 py-0.5 rounded-md border border-line/40">
+                    <time className="shrink-0 text-[10px] text-accent bg-accent/10 px-2 py-0.5 rounded-md border border-accent/20 font-bold">
                       {l.createdAt.toLocaleTimeString(undefined, {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </time>
-                    <span className="text-ink leading-relaxed font-medium">{l.note}</span>
+                    <span className="text-ink leading-relaxed font-sans font-semibold">{l.note}</span>
                   </li>
                 ))}
               </ul>
             </div>
           )}
 
-          {/* Complete Task CTA */}
+          {/* Bottom Toolbar & Shortcuts */}
           <div className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t border-line/60 pt-6">
             <button
               onClick={() => startTransition(() => void completeAndLeaveFocus(task.id))}
               disabled={pending}
-              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-accent hover:opacity-90 px-6 py-3 text-sm font-bold text-white transition-all active:scale-95 shadow-md disabled:opacity-50"
+              className="flex-1 sm:flex-initial flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-accent hover:opacity-90 px-6 py-3.5 text-sm font-bold text-white transition-all active:scale-95 shadow-md disabled:opacity-50"
             >
               <CheckCircle2 className="size-5" />
               <span>Complete Task & Log Victory</span>
             </button>
 
-            <kbd className="hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-line/80 bg-raised px-3 py-1.5 text-xs font-mono text-faint shadow-2xs">
-              <Clock className="size-3.5" />
-              Press ESC to exit
-            </kbd>
+            <div className="flex items-center gap-2 text-[11px] font-mono text-faint">
+              <kbd className="rounded-md border border-line/80 bg-raised px-2 py-1 shadow-2xs">
+                Space
+              </kbd>
+              <span>Play/Pause</span>
+              <kbd className="rounded-md border border-line/80 bg-raised px-2 py-1 shadow-2xs ml-1">
+                Esc
+              </kbd>
+              <span>Exit</span>
+            </div>
           </div>
         </div>
       </div>
