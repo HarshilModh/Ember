@@ -1,5 +1,6 @@
 import { FocusView } from "@/components/focus-view";
 import { allOpenTasks, taskLogs } from "@/db/queries";
+import { getOwnerId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,8 @@ export default async function FocusPage({
   searchParams: Promise<{ id?: string }>;
 }) {
   const { id } = await searchParams;
-  const tasks = await allOpenTasks();
+  const ownerId = await getOwnerId();
+  const tasks = await allOpenTasks(ownerId);
   const selectedId = id ? parseInt(id, 10) : tasks[0]?.id;
   const activeTask = tasks.find((t) => t.id === selectedId) ?? tasks[0];
 
@@ -22,7 +24,7 @@ export default async function FocusPage({
     );
   }
 
-  const logs = await taskLogs(activeTask.id);
+  const logs = await taskLogs(ownerId, activeTask.id);
 
   return <FocusView task={activeTask} logs={logs} />;
 }

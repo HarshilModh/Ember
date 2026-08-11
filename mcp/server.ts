@@ -199,7 +199,7 @@ server.registerTool(
         const [row] = await db
           .update(tasks)
           .set({ status: "done", completedAt: new Date() })
-          .where(eq(tasks.id, id))
+          .where(and(eq(tasks.id, id), eq(tasks.ownerId, OWNER_ID)))
           .returning();
         return row;
       },
@@ -222,12 +222,16 @@ server.registerTool(
     guard(
       async () => {
         if (task_id !== undefined) {
-          const [t] = await db.select().from(tasks).where(eq(tasks.id, task_id)).limit(1);
+          const [t] = await db
+            .select()
+            .from(tasks)
+            .where(and(eq(tasks.id, task_id), eq(tasks.ownerId, OWNER_ID)))
+            .limit(1);
           if (!t) return null;
         }
         const [row] = await db
           .insert(logs)
-          .values({ note, taskId: task_id ?? null })
+          .values({ ownerId: OWNER_ID, note, taskId: task_id ?? null })
           .returning();
         return row;
       },
@@ -261,9 +265,11 @@ server.registerTool(
       async () => {
         if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
 
-        let problem = slug ? await findProblemBySlug(slug) : await findProblem(String(number));
+        let problem = slug
+          ? await findProblemBySlug(OWNER_ID, slug)
+          : await findProblem(OWNER_ID, String(number));
         if (!problem) {
-          problem = await upsertProblem({
+          problem = await upsertProblem(OWNER_ID, {
             slug: slug ?? `leetcode-${number}`,
             number: number ?? null,
             title: title ?? slug ?? `Problem #${number}`,
@@ -273,7 +279,7 @@ server.registerTool(
           });
         }
 
-        const nextAt = await recordAttempt(problem.id, outcome as Outcome, {
+        const nextAt = await recordAttempt(OWNER_ID, problem.id, outcome as Outcome, {
           minutes,
           notes,
           source: "manual",
@@ -298,7 +304,7 @@ server.registerTool(
   async ({ limit, difficulty }) =>
     guard(
       async () => {
-        const rows = await dueReviews(limit ?? 20);
+        const rows = await dueReviews(OWNER_ID, limit ?? 20);
         return difficulty ? rows.filter((p) => p.difficulty === difficulty) : rows;
       },
       (rows) =>

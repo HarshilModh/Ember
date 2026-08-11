@@ -12,6 +12,7 @@ import {
   Play,
 } from "lucide-react";
 import { dueReviews, recentAttempts, topicBreakdown } from "@/db/queries";
+import { getOwnerId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -24,10 +25,11 @@ const OUTCOME_META = {
 } as const;
 
 export default async function PracticePage() {
+  const ownerId = await getOwnerId();
   const [reviews, attempts, topics] = await Promise.all([
-    dueReviews(10),
-    recentAttempts(8),
-    topicBreakdown(),
+    dueReviews(ownerId, 10),
+    recentAttempts(ownerId, 8),
+    topicBreakdown(ownerId),
   ]);
 
   const overdueCutoff = new Date();

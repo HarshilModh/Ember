@@ -3,12 +3,14 @@ import { ClosedTasks } from "@/components/closed-tasks";
 import { EmptyState, TaskList } from "@/components/task-list";
 import { allOpenTasks, recentlyClosedTasks, tagsForTasks } from "@/db/queries";
 import { PRIORITY_LABELS } from "@/lib/format";
+import { getOwnerId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function AllPage() {
-  const [open, closed] = await Promise.all([allOpenTasks(), recentlyClosedTasks()]);
-  const tags = await tagsForTasks([...open, ...closed].map((t) => t.id));
+  const ownerId = await getOwnerId();
+  const [open, closed] = await Promise.all([allOpenTasks(ownerId), recentlyClosedTasks(ownerId)]);
+  const tags = await tagsForTasks(ownerId, [...open, ...closed].map((t) => t.id));
 
   const groups = [3, 2, 1, 0]
     .map((p) => ({ priority: p, tasks: open.filter((t) => t.priority === p) }))

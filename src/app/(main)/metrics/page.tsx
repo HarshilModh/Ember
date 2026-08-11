@@ -1,5 +1,6 @@
 import { attemptsInLast, completionStreak, completionsByDay, doneToday, practiceStats, weeklyRollup } from "@/db/queries";
 import { Flame, CheckCircle2, Trophy, ListChecks, Target, TrendingUp, XCircle, ScrollText, Code2 } from "lucide-react";
+import { getOwnerId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +12,14 @@ const DIFFICULTY_COLOR: Record<string, string> = {
 };
 
 export default async function MetricsPage() {
+  const ownerId = await getOwnerId();
   const [streak, done, week, practice, rollup, weekAttempts] = await Promise.all([
-    completionStreak(),
-    doneToday(),
-    completionsByDay(7),
-    practiceStats(),
-    weeklyRollup(7),
-    attemptsInLast(7),
+    completionStreak(ownerId),
+    doneToday(ownerId),
+    completionsByDay(ownerId, 7),
+    practiceStats(ownerId),
+    weeklyRollup(ownerId, 7),
+    attemptsInLast(ownerId, 7),
   ]);
 
   const weekTotal = week.reduce((sum, d) => sum + d.count, 0);

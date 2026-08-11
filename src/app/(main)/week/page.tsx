@@ -1,13 +1,15 @@
 import { EmptyState, TaskList } from "@/components/task-list";
 import { tagsForTasks, weekTasks } from "@/db/queries";
 import { dayHeading } from "@/lib/format";
+import { getOwnerId } from "@/lib/auth";
 import type { Task } from "@/db/schema";
 
 export const dynamic = "force-dynamic";
 
 export default async function WeekPage() {
-  const tasks = await weekTasks();
-  const tags = await tagsForTasks(tasks.map((t) => t.id));
+  const ownerId = await getOwnerId();
+  const tasks = await weekTasks(ownerId);
+  const tags = await tagsForTasks(ownerId, tasks.map((t) => t.id));
 
   // Grouped by due day. weekTasks() only returns rows with a due date, so the
   // non-null assertion below is safe.

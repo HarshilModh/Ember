@@ -12,16 +12,18 @@ import {
 } from "@/db/queries";
 import { daysUntil, longDate, relativeDue } from "@/lib/format";
 import { pulse } from "@/lib/pulse";
+import { getOwnerId } from "@/lib/auth";
 import { Play, Code2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 export default async function TodayPage() {
-  const tasks = await todayTasks();
-  const closedToday = await doneTodayTasks();
-  const tags = await tagsForTasks([...tasks, ...closedToday].map((t) => t.id));
-  const reviews = await dueReviews(5);
-  const [streak, history] = await Promise.all([completionStreak(), completionsByDay(14)]);
+  const ownerId = await getOwnerId();
+  const tasks = await todayTasks(ownerId);
+  const closedToday = await doneTodayTasks(ownerId);
+  const tags = await tagsForTasks(ownerId, [...tasks, ...closedToday].map((t) => t.id));
+  const reviews = await dueReviews(ownerId, 5);
+  const [streak, history] = await Promise.all([completionStreak(ownerId), completionsByDay(ownerId, 14)]);
 
   const doingTask = tasks.find((t) => t.status === "doing");
   const overdue = tasks.filter((t) => t.dueAt && daysUntil(t.dueAt) < 0 && t.id !== doingTask?.id);

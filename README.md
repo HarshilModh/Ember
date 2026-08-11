@@ -59,23 +59,35 @@ hosted Postgres is a one-line change:
   is cheap: point the env var at Neon and both the deployed UI and your local
   Claude Code session are looking at the same rows.
 
-## Auth
+## Auth and multi-user support
 
-Clerk gates the web UI once it's deployed and publicly reachable. It exists to
-keep a stranger with the URL from seeing your tasks — it is not a multi-user
-feature, and the schema has no `user_id` columns to make that claim.
+Clerk gates the web UI, and every row in the database carries an `owner_id`
+(the signed-in user's email). A handful of trusted people can share one
+deployment and one database without seeing each other's tasks or problems.
+See the in-app [Help page](/help) for the walkthrough; this is the mechanism
+behind it.
 
 - `middleware.ts` protects every route except `/sign-in` and `/sign-up`.
 - Set `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` from your
   Clerk dashboard (clerk.com → your application → API Keys) in `.env` locally
   and in the deploy target's environment variables.
 - In the Clerk dashboard, turn public sign-up off (Restrictions →
-  sign-up mode → restricted or invitation-only) so nobody but you can ever
-  create an account. Then create exactly one user for yourself.
-- **The MCP server is unaffected.** It talks to Postgres directly over
-  `DATABASE_URL`, the same as before — it never goes through the Next.js app
-  or Clerk. Claude Code and Claude Desktop keep working locally with zero
-  changes, deployed or not.
+  sign-up mode → restricted or invitation-only), then invite people one at a
+  time (Users → Invite) rather than letting anyone who finds the URL create
+  an account.
+- Every query in `src/db/queries.ts` takes `ownerId` and filters by it; every
+  mutation in `src/app/actions.ts` matches `(id, ownerId)`, not `id` alone —
+  otherwise one person could act on another's row just by guessing a number,
+  since ids are small sequential integers.
+- **The MCP server has no session**, unlike the web app, so it can't ask
+  Clerk who's using it. It reads `EMBER_OWNER_EMAIL` from its own env at
+  startup and fails immediately if that's missing — see the MCP server
+  section below.
+- **This is app-layer isolation, not database-layer isolation.** Anyone who
+  has the raw `DATABASE_URL` — which every person's local MCP config needs —
+  can read or write any owner's rows directly via psql or any other client,
+  bypassing the app entirely. Fine for a few trusted people; not a
+  substitute for real access control if this ever grows past that.
 
 ## Repo layout
 
@@ -176,14 +188,20 @@ Four tools. Resist adding more.
 | `complete_task` | id | Set status `done`, stamp `completed_at`. |
 | `log_note` | note, task_id? | Append to `logs`. Works without a task_id for loose notes. |
 
-Register in Claude Code config:
+Register in Claude Code config — `EMBER_OWNER_EMAIL` must be the email you
+sign in with; the server refuses to start without it, since a shared
+database has no other way to know whose rows are whose:
 
 ```json
 {
   "mcpServers": {
     "ember": {
       "command": "node",
-      "args": ["/absolute/path/to/ember/mcp/dist/server.mjs"]
+      "args": ["/absolute/path/to/ember/mcp/dist/server.mjs"],
+      "env": {
+        "DATABASE_URL": "same value as .env",
+        "EMBER_OWNER_EMAIL": "you@example.com"
+      }
     }
   }
 }

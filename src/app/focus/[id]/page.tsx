@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { FocusView } from "@/components/focus-view";
 import { getTask, taskLogs } from "@/db/queries";
+import { getOwnerId } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
@@ -9,8 +10,9 @@ export default async function FocusPage({ params }: { params: Promise<{ id: stri
   const taskId = Number(id);
   if (!Number.isInteger(taskId)) notFound();
 
-  const task = await getTask(taskId);
+  const ownerId = await getOwnerId();
+  const task = await getTask(ownerId, taskId);
   if (!task) notFound();
 
-  return <FocusView task={task} logs={await taskLogs(taskId)} />;
+  return <FocusView task={task} logs={await taskLogs(ownerId, taskId)} />;
 }

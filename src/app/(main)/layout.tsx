@@ -1,4 +1,5 @@
 import { completionStreak } from "@/db/queries";
+import { getOwnerId } from "@/lib/auth";
 import { Sidebar, MobileHeader } from "@/components/chrome";
 import { Plus } from "lucide-react";
 import Link from "next/link";
@@ -6,7 +7,8 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
-  const streak = await completionStreak();
+  const ownerId = await getOwnerId();
+  const streak = await completionStreak(ownerId);
 
   return (
     <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-bg text-ink">

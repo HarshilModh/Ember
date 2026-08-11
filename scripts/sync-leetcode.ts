@@ -69,6 +69,8 @@ let skipped = 0;
 async function main() {
   const username = process.env.LEETCODE_USERNAME?.trim();
   if (!username) throw new Error("LEETCODE_USERNAME is not set in .env — nothing to sync.");
+  const ownerId = process.env.EMBER_OWNER_EMAIL?.trim();
+  if (!ownerId) throw new Error("EMBER_OWNER_EMAIL is not set in .env — sync needs to know whose problems these are.");
 
   console.log(`Fetching recent accepted submissions for ${username}...`);
   const { recentAcSubmissionList } = await graphql<{ recentAcSubmissionList: RecentSubmission[] }>(
@@ -87,7 +89,7 @@ async function main() {
   for (const sub of recentAcSubmissionList) {
     if (seen.has(sub.titleSlug)) continue;
     seen.add(sub.titleSlug);
-    if (await findProblemBySlug(sub.titleSlug)) continue;
+    if (await findProblemBySlug(ownerId, sub.titleSlug)) continue;
 
     console.log(`  fetching details for ${sub.titleSlug}...`);
     const { question } = await graphql<{ question: QuestionDetail | null }>(QUESTION_QUERY, {
@@ -99,10 +101,10 @@ async function main() {
   for (const sub of recentAcSubmissionList) {
     const attemptedAt = new Date(Number(sub.timestamp) * 1000);
 
-    let problem = await findProblemBySlug(sub.titleSlug);
+    let problem = await findProblemBySlug(ownerId, sub.titleSlug);
     if (!problem) {
       const detail = details.get(sub.titleSlug);
-      problem = await upsertProblem({
+      problem = await upsertProblem(ownerId, {
         slug: sub.titleSlug,
         number: detail?.questionFrontendId ? Number(detail.questionFrontendId) : null,
         title: sub.title,
@@ -112,12 +114,12 @@ async function main() {
       });
     }
 
-    if (await hasAttemptAt(problem.id, attemptedAt)) {
+    if (await hasAttemptAt(ownerId, problem.id, attemptedAt)) {
       skipped += 1;
       continue;
     }
 
-    await recordAttempt(problem.id, "accepted", { source: "sync", attemptedAt });
+    await recordAttempt(ownerId, problem.id, "accepted", { source: "sync", attemptedAt });
     inserted += 1;
   }
 

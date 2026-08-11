@@ -104,13 +104,13 @@ export function Sidebar({ streak = 0 }: { streak?: number }) {
 
       {/* Bottom Footer */}
       <div className="mt-auto border-t border-line/60 pt-4 space-y-1">
-        <a
-          href="#"
+        <Link
+          href="/help"
           className="flex items-center gap-3 px-3.5 py-2 rounded-xl text-[13px] font-medium text-muted hover:text-ink hover:bg-surface/60 transition-all"
         >
           <HelpCircle className="size-4 text-faint" />
           <span>Help & Docs</span>
-        </a>
+        </Link>
         <div className="flex items-center justify-between px-3.5 py-2">
           <span className="text-[12px] font-medium text-faint">Theme</span>
           <ThemeToggle />
