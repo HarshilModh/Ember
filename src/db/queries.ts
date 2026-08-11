@@ -16,32 +16,12 @@ import {
   type Task,
 } from "./schema";
 import { nextReviewAt, nextSchedule } from "@/lib/scheduler";
+import { startOfToday, endOfToday, daysFromToday, todayKey, sqlZone } from "@/lib/timezone";
 
 export const OPEN = ["todo", "doing"] as const;
 export const CLOSED = ["done", "dropped"] as const;
 
-/**
- * Day boundaries in the machine's local timezone. Everyone sharing this
- * deployment is assumed to be in roughly the same timezone — there is no
- * per-user timezone stored, only per-user data.
- */
-export function startOfToday(): Date {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-export function endOfToday(): Date {
-  const d = startOfToday();
-  d.setDate(d.getDate() + 1);
-  return d;
-}
-
-export function daysFromToday(n: number): Date {
-  const d = startOfToday();
-  d.setDate(d.getDate() + n);
-  return d;
-}
+export { startOfToday, endOfToday, daysFromToday };
 
 /** Due today, overdue, or actively being worked on. */
 export async function todayTasks(ownerId: string): Promise<Task[]> {
@@ -132,26 +112,30 @@ export async function taskLogs(ownerId: string, taskId: number) {
  * broken before the day is over) with at least one completed task.
  */
 export async function completionStreak(ownerId: string): Promise<number> {
+  // Bucketed in the app's timezone, not Postgres's own (usually UTC) — a task
+  // completed at 11pm local should count for that local day, not roll into
+  // the next UTC day.
   const rows = await db
-    .select({ day: raw<string>`to_char(${tasks.completedAt}::date, 'YYYY-MM-DD')` })
+    .select({ day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${sqlZone()}, 'YYYY-MM-DD')` })
     .from(tasks)
     .where(and(eq(tasks.ownerId, ownerId), eq(tasks.status, "done"), isNotNull(tasks.completedAt)))
-    .groupBy(raw`${tasks.completedAt}::date`)
-    .orderBy(desc(raw`${tasks.completedAt}::date`))
+    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`)
+    .orderBy(desc(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`))
     .limit(400);
 
   const days = new Set(rows.map((r) => r.day));
-  const key = (d: Date) => d.toISOString().slice(0, 10);
 
-  const cursor = startOfToday();
+  // Walked entirely as yyyy-MM-dd keys in the app's zone — no native Date day
+  // arithmetic, which reads/writes the OS's own calendar, not the app's.
+  let offset = 0;
   // Yesterday counting as the anchor keeps a real streak alive through a day
   // that simply has not been worked yet.
-  if (!days.has(key(cursor))) cursor.setDate(cursor.getDate() - 1);
+  if (!days.has(todayKey(0))) offset = -1;
 
   let streak = 0;
-  while (days.has(key(cursor))) {
+  while (days.has(todayKey(offset))) {
     streak += 1;
-    cursor.setDate(cursor.getDate() - 1);
+    offset -= 1;
   }
   return streak;
 }
@@ -203,18 +187,17 @@ export async function tagsForTasks(ownerId: string, taskIds: number[]): Promise<
 export async function completionsByDay(ownerId: string, days = 7): Promise<{ day: string; count: number }[]> {
   const rows = await db
     .select({
-      day: raw<string>`to_char(${tasks.completedAt}::date, 'YYYY-MM-DD')`,
+      day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${sqlZone()}, 'YYYY-MM-DD')`,
       count: raw<number>`count(*)::int`,
     })
     .from(tasks)
     .where(and(eq(tasks.ownerId, ownerId), eq(tasks.status, "done"), gte(tasks.completedAt, daysFromToday(-(days - 1)))))
-    .groupBy(raw`${tasks.completedAt}::date`);
+    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`);
 
   const byDay = new Map(rows.map((r) => [r.day, r.count]));
   const out: { day: string; count: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = daysFromToday(-i);
-    const key = d.toISOString().slice(0, 10);
+    const key = todayKey(-i);
     out.push({ day: key, count: byDay.get(key) ?? 0 });
   }
   return out;

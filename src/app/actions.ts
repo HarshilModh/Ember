@@ -7,6 +7,7 @@ import { db } from "@/db/client";
 import { attachTags, createMcpToken, recordAttempt, revokeMcpToken } from "@/db/queries";
 import { logs, tasks, type Outcome } from "@/db/schema";
 import { getOwnerId } from "@/lib/auth";
+import { endOfDay } from "@/lib/timezone";
 
 function refresh() {
   revalidatePath("/", "layout");
@@ -29,7 +30,10 @@ export async function addTask(formData: FormData) {
       notes: String(formData.get("notes") ?? "").trim() || null,
       priority: Number.isFinite(priority) ? priority : 0,
       // A bare date means the end of that day, so it is not instantly overdue.
-      dueAt: rawDue ? new Date(`${rawDue}T23:59:00`) : null,
+      // Resolved in the app's fixed timezone, not this server's own — a
+      // server action can run locally in dev or on Vercel in prod, and
+      // those two disagree about what day it is for hours at a time.
+      dueAt: rawDue ? endOfDay(...(rawDue.split("-").map(Number) as [number, number, number])) : null,
     })
     .returning();
 

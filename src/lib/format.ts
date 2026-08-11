@@ -1,8 +1,19 @@
+import { DateTime } from "luxon";
+
 export const PRIORITY_LABELS = ["none", "low", "medium", "high"] as const;
 export const PRIORITY_COLORS = ["var(--p0)", "var(--p1)", "var(--p2)", "var(--p3)"] as const;
 
+/**
+ * Same fixed zone as src/lib/timezone.ts, under the NEXT_PUBLIC_ prefix
+ * because this file is imported by client components too — a "which day is
+ * this" question needs the same answer everywhere in the app, not one
+ * answer server-side and a different one in whichever timezone a visitor's
+ * own browser happens to be set to.
+ */
+const ZONE = process.env.NEXT_PUBLIC_EMBER_TIMEZONE?.trim() || "UTC";
+
 function midnight(d: Date): number {
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  return DateTime.fromJSDate(d).setZone(ZONE).startOf("day").toMillis();
 }
 
 /** Whole days between today and `d`. Negative means overdue. */

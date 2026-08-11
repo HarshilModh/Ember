@@ -97,25 +97,61 @@ export default async function HelpPage() {
               Did you know you can update your list just by talking to Claude? It's like having a personal assistant for your deep work.
             </p>
 
-            <div className="mt-4 p-4 bg-surface rounded-xl border border-line space-y-2">
+            <div className="mt-4 p-4 bg-surface rounded-xl border border-line space-y-3">
               <p className="text-xs font-semibold text-ink">Easiest way — nothing to install</p>
               <p className="text-xs text-muted">
-                Generate a token on the <Link href="/settings" className="text-accent hover:underline">Settings</Link> page,
-                then give this to Claude:
+                Generate a token on the <Link href="/settings" className="text-accent hover:underline">Settings</Link> page
+                (give it a label like "laptop" or "phone" so you can revoke just that one later). Then, depending on
+                which app you use:
               </p>
-              <pre className="text-[11px] bg-raised p-3 rounded-lg border border-line/60 overflow-x-auto font-mono text-ink whitespace-pre-wrap break-all select-all">
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-ink uppercase tracking-wide">Claude Code</p>
+                <pre className="text-[11px] bg-raised p-3 rounded-lg border border-line/60 overflow-x-auto font-mono text-ink whitespace-pre-wrap break-all select-all">
 {`claude mcp add --transport http ember ${origin}/api/mcp \\
   --header "Authorization: Bearer <token from Settings>"`}
-              </pre>
+                </pre>
+              </div>
+
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-bold text-ink uppercase tracking-wide">Claude Desktop</p>
+                <p className="text-[11px] text-muted">
+                  Desktop has no install command for this — open{" "}
+                  <code className="bg-raised px-1 py-0.5 rounded border border-line/50 text-ink">
+                    ~/Library/Application Support/Claude/claude_desktop_config.json
+                  </code>{" "}
+                  and add this entry (creates a tiny local bridge process that just forwards to the address above —
+                  nothing about your tasks is stored on your machine):
+                </p>
+                <pre className="text-[11px] bg-raised p-3 rounded-lg border border-line/60 overflow-x-auto font-mono text-ink whitespace-pre-wrap break-all select-all">
+{`{
+  "mcpServers": {
+    "ember": {
+      "command": "npx",
+      "args": [
+        "-y", "mcp-remote",
+        "${origin}/api/mcp",
+        "--header", "Authorization:\${AUTH_HEADER}"
+      ],
+      "env": { "AUTH_HEADER": "Bearer <token from Settings>" }
+    }
+  }
+}`}
+                </pre>
+                <p className="text-[11px] text-faint">
+                  Fully quit and reopen Desktop after saving — it only reads this file on launch, a reload isn't enough.
+                </p>
+              </div>
+
               <p className="text-[11px] text-faint">
-                Every person gets their own token and only ever sees their own tasks through it. Revoke it
-                from Settings any time to cut access off immediately.
+                Every person (and every device) can carry its own token and only ever sees your own tasks through
+                it. Revoke any one from Settings any time to cut just that access off immediately.
               </p>
             </div>
 
             <details className="group mt-3 pt-2 border-t border-accent/15">
               <summary className="cursor-pointer text-accent font-semibold text-xs flex items-center gap-1 hover:underline select-none">
-                <span>Advanced: run it locally instead</span>
+                <span>Advanced: run it locally instead (Claude Code)</span>
                 <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
               </summary>
               <div className="mt-3 p-4 bg-surface rounded-xl border border-line space-y-3">

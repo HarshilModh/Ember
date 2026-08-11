@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { dueReviews, recentAttempts, topicBreakdown } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
+import { startOfToday } from "@/lib/timezone";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,7 @@ export default async function PracticePage() {
     topicBreakdown(ownerId),
   ]);
 
-  const overdueCutoff = new Date();
-  overdueCutoff.setHours(0, 0, 0, 0);
+  const overdueCutoff = startOfToday();
 
   return (
     <div className="space-y-8 animate-reveal">

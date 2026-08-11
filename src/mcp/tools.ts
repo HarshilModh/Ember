@@ -13,25 +13,32 @@ import {
   upsertProblem,
 } from "@/db/queries";
 import { logs, tags, taskTags, tasks, type Outcome } from "@/db/schema";
+import { endOfDay, todayParts, tomorrowParts, zonedParts } from "@/lib/timezone";
 
 const OUTCOMES = ["solved_clean", "solved_hints", "saw_solution", "failed", "accepted"] as const;
 const PRIORITY_NAMES = ["none", "low", "medium", "high"] as const;
 
-/** Accepts an ISO date, an ISO datetime, or the two words worth special-casing. */
+/**
+ * Accepts an ISO date, an ISO datetime, or the two words worth special-casing.
+ * "today"/"tomorrow" and bare dates resolve in the app's fixed timezone
+ * (NEXT_PUBLIC_EMBER_TIMEZONE), not whichever machine happens to run this — this same
+ * request can be served by a laptop or by Vercel depending on which
+ * transport it came in on, and those two disagree about what day it is for
+ * hours at a time otherwise.
+ */
 function parseDue(input?: string): Date | null {
   if (!input) return null;
   const s = input.trim().toLowerCase();
 
   if (s === "today" || s === "tomorrow") {
-    const d = new Date();
-    d.setHours(23, 59, 0, 0);
-    if (s === "tomorrow") d.setDate(d.getDate() + 1);
-    return d;
+    const { year, month, day } = s === "today" ? todayParts() : tomorrowParts();
+    return endOfDay(year, month, day);
   }
 
   // A bare date means end of that day, not midnight at its start — otherwise
   // "due 2026-08-12" is already overdue for the whole of the 12th.
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(`${s}T23:59:00`);
+  const bareDate = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (bareDate) return endOfDay(Number(bareDate[1]), Number(bareDate[2]), Number(bareDate[3]));
 
   const d = new Date(input);
   if (Number.isNaN(d.getTime())) throw new Error(`Could not read "${input}" as a date.`);
@@ -39,21 +46,25 @@ function parseDue(input?: string): Date | null {
 }
 
 /**
- * Local time, deliberately not ISO. A task due 23:59 tonight renders as
- * tomorrow morning in UTC, which reads as a wrong answer to anyone checking.
+ * In the app's timezone, deliberately not the runtime's own. This tool can
+ * run on a laptop (stdio) or on Vercel (remote HTTP) depending on how it was
+ * called — `d.getHours()` reads whichever one that happened to be, so a task
+ * due 23:59 locally could render as tomorrow morning to a server in UTC.
  */
 function formatDue(d: Date): string {
+  const { year, month, day, hour, minute } = zonedParts(d);
   const p = (n: number) => String(n).padStart(2, "0");
-  const date = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  const date = `${year}-${p(month)}-${p(day)}`;
   // End-of-day is the default for a bare date, so the time is noise there.
-  if (d.getHours() === 23 && d.getMinutes() === 59) return date;
-  return `${date} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  if (hour === 23 && minute === 59) return date;
+  return `${date} ${p(hour)}:${p(minute)}`;
 }
 
 /** Review dates are day-granularity — no point showing a time of day for them. */
 function formatDate(d: Date): string {
+  const { year, month, day } = zonedParts(d);
   const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${year}-${p(month)}-${p(day)}`;
 }
 
 function render(t: typeof tasks.$inferSelect, tagNames: string[] = []): string {
