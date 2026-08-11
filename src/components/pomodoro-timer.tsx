@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Play,
   Pause,
@@ -13,6 +13,7 @@ import {
   Sliders,
   Check,
   Sparkles,
+  Keyboard,
 } from "lucide-react";
 import { randomQuote, type QuoteItem } from "@/lib/quotes";
 import { AmbientSoundscapePlayer } from "./ambient-soundscape";
@@ -36,9 +37,13 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
 
   const [quote, setQuote] = useState<QuoteItem>(() => randomQuote());
   const [showCustomInput, setShowCustomInput] = useState(false);
-  const [customInputVal, setCustomInputVal] = useState("45");
+  const [customInputVal, setCustomInputVal] = useState(
+    String(Math.round(totalDuration / 60)) || "25"
+  );
 
-  // Keyboard shortcuts listener for Space (Pause/Play), R (Reset), S (Skip)
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcuts listener for Space (Pause/Play), R (Reset), C (Custom Time)
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const activeEl = document.activeElement;
@@ -50,6 +55,15 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
         toggleSession();
       } else if (e.key === "r" || e.key === "R") {
         resetSession();
+      } else if (e.key === "c" || e.key === "C") {
+        e.preventDefault();
+        setShowCustomInput((prev) => {
+          const nextState = !prev;
+          if (nextState) {
+            setTimeout(() => inputRef.current?.focus(), 50);
+          }
+          return nextState;
+        });
       }
     }
     window.addEventListener("keydown", handleKeyDown);
@@ -69,10 +83,11 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference * (1 - progressRatio);
 
-  function handleSetCustomMinutes(mins: number) {
+  function handleApplyMinutes(mins: number) {
     if (isNaN(mins) || mins <= 0) return;
-    setCustomTimer(mins);
-    setShowCustomInput(false);
+    const clamped = Math.min(180, Math.max(1, mins));
+    setCustomTimer(clamped);
+    setCustomInputVal(String(clamped));
   }
 
   return (
@@ -126,7 +141,13 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
           {/* Custom Time Toggle Pill */}
           <button
             type="button"
-            onClick={() => setShowCustomInput(!showCustomInput)}
+            onClick={() => {
+              setShowCustomInput(!showCustomInput);
+              if (!showCustomInput) {
+                setTimeout(() => inputRef.current?.focus(), 50);
+              }
+            }}
+            title="Custom time (Press C)"
             className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5 whitespace-nowrap ${
               phase === "custom" || showCustomInput
                 ? "bg-emerald-600 text-white shadow-xs"
@@ -135,6 +156,9 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
           >
             <Sliders className="size-3.5" />
             <span>Custom Time</span>
+            <kbd className="hidden sm:inline bg-black/20 px-1.5 py-0.5 rounded text-[10px] font-mono">
+              C
+            </kbd>
           </button>
         </div>
 
@@ -157,16 +181,96 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
         </div>
       </div>
 
-      {/* Custom Duration Presets Toolbar (When Custom Time clicked) */}
+      {/* Clean Custom Duration Panel with Direct Keyboard Type Input */}
       {showCustomInput && (
-        <div className="relative z-10 w-full bg-raised/90 border border-line/60 rounded-2xl p-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 animate-reveal shadow-2xs">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-xs font-bold text-muted mr-1">Presets:</span>
+        <div className="relative z-10 w-full bg-raised/95 border border-line/70 rounded-3xl p-5 flex flex-col gap-4 animate-reveal shadow-md">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <span className="text-xs font-extrabold uppercase tracking-wider text-ink flex items-center gap-1.5">
+              <Keyboard className="size-4 text-accent" />
+              Type Custom Time (Minutes)
+            </span>
+
+            {/* Direct Keyboard Input Form */}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleApplyMinutes(parseInt(customInputVal, 10));
+              }}
+              className="flex items-center gap-2 w-full sm:w-auto"
+            >
+              <div className="relative flex items-center">
+                <input
+                  ref={inputRef}
+                  type="number"
+                  min="1"
+                  max="180"
+                  value={customInputVal}
+                  onChange={(e) => setCustomInputVal(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleApplyMinutes(parseInt(customInputVal, 10));
+                    }
+                  }}
+                  placeholder="Minutes"
+                  className="w-28 rounded-2xl border border-line/80 bg-surface px-3.5 py-1.5 text-sm font-mono font-bold text-ink outline-none focus:border-accent focus:ring-2 focus:ring-accent/15"
+                />
+                <span className="absolute right-3 text-xs font-bold text-faint">m</span>
+              </div>
+
+              <button
+                type="submit"
+                className="px-4 py-1.5 bg-accent text-white font-bold text-xs rounded-2xl hover:opacity-90 transition-all flex items-center gap-1 shadow-xs active:scale-95"
+              >
+                <Check className="size-3.5" />
+                <span>Apply</span>
+              </button>
+            </form>
+          </div>
+
+          {/* Range Slider for Drag Control */}
+          <div className="space-y-2 pt-1 border-t border-line/40">
+            <div className="flex items-center justify-between text-[11px] font-bold text-muted">
+              <span>Drag Slider:</span>
+              <span className="font-mono text-xs font-bold text-accent">
+                {customInputVal} mins
+              </span>
+            </div>
+            <input
+              type="range"
+              min="5"
+              max="120"
+              step="5"
+              value={customInputVal}
+              onChange={(e) => {
+                const val = e.target.value;
+                setCustomInputVal(val);
+                handleApplyMinutes(parseInt(val, 10));
+              }}
+              className="accent-range cursor-pointer"
+            />
+            <div className="flex justify-between text-[10px] font-mono font-bold text-faint px-0.5">
+              <span>5m</span>
+              <span>15m</span>
+              <span>30m</span>
+              <span>45m</span>
+              <span>60m</span>
+              <span>90m</span>
+              <span>120m</span>
+            </div>
+          </div>
+
+          {/* Quick Preset Buttons */}
+          <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-line/40">
+            <span className="text-[11px] font-bold text-muted mr-1">Presets:</span>
             {PRESET_MINUTES.map((m) => (
               <button
                 key={m}
                 type="button"
-                onClick={() => handleSetCustomMinutes(m)}
+                onClick={() => {
+                  setCustomInputVal(String(m));
+                  handleApplyMinutes(m);
+                }}
                 className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
                   Math.round(totalDuration / 60) === m && phase === "custom"
                     ? "bg-accent text-white border-accent shadow-xs"
@@ -177,33 +281,6 @@ export function PomodoroTimer({ isZen = false }: { isZen?: boolean }) {
               </button>
             ))}
           </div>
-
-          {/* Custom Minute Direct Input */}
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              handleSetCustomMinutes(parseInt(customInputVal, 10));
-            }}
-            className="flex items-center gap-2 w-full sm:w-auto"
-          >
-            <input
-              type="number"
-              min="1"
-              max="180"
-              value={customInputVal}
-              onChange={(e) => setCustomInputVal(e.target.value)}
-              placeholder="Mins"
-              className="w-20 rounded-xl border border-line/80 bg-surface px-3 py-1.5 text-xs font-mono font-bold text-ink outline-none focus:border-accent"
-            />
-            <span className="text-xs font-bold text-faint">min</span>
-            <button
-              type="submit"
-              className="px-3.5 py-1.5 bg-accent text-white font-bold text-xs rounded-xl hover:opacity-90 transition-all flex items-center gap-1 shadow-xs"
-            >
-              <Check className="size-3.5" />
-              Set
-            </button>
-          </form>
         </div>
       )}
 

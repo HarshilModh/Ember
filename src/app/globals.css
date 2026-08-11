@@ -82,6 +82,41 @@ body {
   background-color: var(--faint);
 }
 
+/* Hide scrollbar for clean UI */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Styled Range Input Slider */
+input[type="range"].accent-range {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--line);
+  border-radius: 9999px;
+  outline: none;
+}
+input[type="range"].accent-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 3px solid var(--surface);
+  box-shadow: 0 0 10px var(--glow-accent);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+input[type="range"].accent-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
 /* Utilities */
 .focus-ring {
   @apply outline-none ring-2 ring-accent/60 ring-offset-2 ring-offset-bg shadow-[0_0_16px_rgba(124,115,246,0.25)];
