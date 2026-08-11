@@ -130,9 +130,9 @@ server.registerTool(
           typeof priority === "string" ? PRIORITY_NAMES.indexOf(priority) : (priority ?? 0);
         const [row] = await db
           .insert(tasks)
-          .values({ title, notes: notes ?? null, priority: p, dueAt: parseDue(due_at) })
+          .values({ ownerId: OWNER_ID, title, notes: notes ?? null, priority: p, dueAt: parseDue(due_at) })
           .returning();
-        if (tagNames?.length) await attachTags(row.id, tagNames);
+        if (tagNames?.length) await attachTags(OWNER_ID, row.id, tagNames);
         return { row, tagNames: tagNames ?? [] };
       },
       ({ row, tagNames }) => ok(`Added ${render(row, tagNames)}`),
@@ -155,7 +155,7 @@ server.registerTool(
   async ({ status, due_before, tag, limit }) =>
     guard(
       async () => {
-        const where = [];
+        const where = [eq(tasks.ownerId, OWNER_ID)];
         if (!status || status === "open") where.push(inArray(tasks.status, [...OPEN]));
         else if (status !== "all") where.push(eq(tasks.status, status));
 
@@ -167,7 +167,7 @@ server.registerTool(
           ? base
               .innerJoin(taskTags, eq(taskTags.taskId, tasks.id))
               .innerJoin(tags, eq(tags.id, taskTags.tagId))
-              .where(and(...where, eq(tags.name, tag.trim().toLowerCase())))
+              .where(and(...where, eq(tags.ownerId, OWNER_ID), eq(tags.name, tag.trim().toLowerCase())))
           : base.where(and(...where));
 
         const rows = await q
@@ -175,7 +175,7 @@ server.registerTool(
           .limit(limit ?? 50);
 
         const found = rows.map((r) => r.t);
-        return { found, byTask: await tagsForTasks(found.map((t) => t.id)) };
+        return { found, byTask: await tagsForTasks(OWNER_ID, found.map((t) => t.id)) };
       },
       ({ found, byTask }) =>
         ok(
