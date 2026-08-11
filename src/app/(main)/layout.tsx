@@ -7,6 +7,8 @@ import { MiniFocusDock } from "@/components/mini-focus-dock";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
+import { OnboardingModal } from "@/components/onboarding-modal";
+
 export const dynamic = "force-dynamic";
 
 export default async function MainLayout({ children }: { children: React.ReactNode }) {
@@ -27,6 +29,9 @@ export default async function MainLayout({ children }: { children: React.ReactNo
           </div>
         </div>
         
+        {/* Onboarding Welcome Tour for First-time Users */}
+        <OnboardingModal />
+
         {/* Persistent Floating Mini Focus HUD */}
         <MiniFocusDock />
 
