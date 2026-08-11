@@ -18,6 +18,16 @@ import {
 import { nextReviewAt, nextSchedule } from "@/lib/scheduler";
 import { startOfToday, endOfToday, daysFromToday, todayKey, sqlZone } from "@/lib/timezone";
 
+/**
+ * Inlined as raw SQL text, not a bound parameter — a fixed, trusted value
+ * from our own env var, never user input. Binding it as a parameter instead
+ * (`${sqlZone()}` directly in a tagged template) breaks GROUP BY: Postgres
+ * sees each occurrence as a distinct, unproven-equal parameter and refuses
+ * to accept the SELECT expression as functionally dependent on the GROUP BY
+ * one, even though both bind to the identical string at runtime.
+ */
+const ZONE_SQL = raw.raw(`'${sqlZone()}'`);
+
 export const OPEN = ["todo", "doing"] as const;
 export const CLOSED = ["done", "dropped"] as const;
 
@@ -116,11 +126,11 @@ export async function completionStreak(ownerId: string): Promise<number> {
   // completed at 11pm local should count for that local day, not roll into
   // the next UTC day.
   const rows = await db
-    .select({ day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${sqlZone()}, 'YYYY-MM-DD')` })
+    .select({ day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${ZONE_SQL}, 'YYYY-MM-DD')` })
     .from(tasks)
     .where(and(eq(tasks.ownerId, ownerId), eq(tasks.status, "done"), isNotNull(tasks.completedAt)))
-    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`)
-    .orderBy(desc(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`))
+    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${ZONE_SQL}`)
+    .orderBy(desc(raw`${tasks.completedAt} AT TIME ZONE ${ZONE_SQL}`))
     .limit(400);
 
   const days = new Set(rows.map((r) => r.day));
@@ -187,12 +197,12 @@ export async function tagsForTasks(ownerId: string, taskIds: number[]): Promise<
 export async function completionsByDay(ownerId: string, days = 7): Promise<{ day: string; count: number }[]> {
   const rows = await db
     .select({
-      day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${sqlZone()}, 'YYYY-MM-DD')`,
+      day: raw<string>`to_char(${tasks.completedAt} AT TIME ZONE ${ZONE_SQL}, 'YYYY-MM-DD')`,
       count: raw<number>`count(*)::int`,
     })
     .from(tasks)
     .where(and(eq(tasks.ownerId, ownerId), eq(tasks.status, "done"), gte(tasks.completedAt, daysFromToday(-(days - 1)))))
-    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${sqlZone()}`);
+    .groupBy(raw`${tasks.completedAt} AT TIME ZONE ${ZONE_SQL}`);
 
   const byDay = new Map(rows.map((r) => [r.day, r.count]));
   const out: { day: string; count: number }[] = [];
