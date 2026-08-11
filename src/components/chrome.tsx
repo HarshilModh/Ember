@@ -187,7 +187,7 @@ export function MobileHeader() {
 function currentTheme(): "dark" | "light" {
   const explicit = document.documentElement.dataset.theme;
   if (explicit === "light" || explicit === "dark") return explicit;
-  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+  return "light";
 }
 
 export function ThemeToggle() {

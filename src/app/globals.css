@@ -17,53 +17,8 @@
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/*
- * Dark is default, and true black — every pixel in the background is off,
- * not just dark, which is the point on an OLED panel. Surfaces are lifted
- * just enough off #000 to read as separate layers without turning into the
- * old navy-gray.
- */
+/* Light mode is default */
 :root {
-  --bg: #000000;
-  --surface: #0a0a0d;
-  --raised: #131318;
-  --line: #232329;
-  --ink: #f5f5f7;
-  --muted: #9a9aa5;
-  --faint: #58585f;
-  --accent: #10b981;
-  --accent-soft: rgba(16, 185, 129, 0.16);
-  --p3: #f43f5e;
-  --p2: #f59e0b;
-  --p1: #38bdf8;
-  --p0: #6b7280;
-  --glass-bg: rgba(10, 10, 13, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.06);
-  --glow-accent: rgba(16, 185, 129, 0.18);
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme="dark"]) {
-    --bg: #faf8ff;
-    --surface: #ffffff;
-    --raised: #f2f3ff;
-    --line: #eaedff;
-    --ink: #131b2e;
-    --muted: #3c4a42;
-    --faint: #6c7a71;
-    --accent: #006c49;
-    --accent-soft: rgba(0, 108, 73, 0.1);
-    --p3: #ba1a1a;
-    --p2: #d97706;
-    --p1: #0284c7;
-    --p0: #9ca3af;
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(0, 0, 0, 0.04);
-    --glow-accent: rgba(0, 108, 73, 0.12);
-  }
-}
-
-:root[data-theme="light"] {
   --bg: #faf8ff;
   --surface: #ffffff;
   --raised: #f2f3ff;
@@ -80,6 +35,25 @@
   --glass-bg: rgba(255, 255, 255, 0.85);
   --glass-border: rgba(0, 0, 0, 0.04);
   --glow-accent: rgba(0, 108, 73, 0.12);
+}
+
+:root[data-theme="dark"] {
+  --bg: #000000;
+  --surface: #0a0a0d;
+  --raised: #131318;
+  --line: #232329;
+  --ink: #f5f5f7;
+  --muted: #9a9aa5;
+  --faint: #58585f;
+  --accent: #10b981;
+  --accent-soft: rgba(16, 185, 129, 0.16);
+  --p3: #f43f5e;
+  --p2: #f59e0b;
+  --p1: #38bdf8;
+  --p0: #6b7280;
+  --glass-bg: rgba(10, 10, 13, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glow-accent: rgba(16, 185, 129, 0.18);
 }
 
 body {

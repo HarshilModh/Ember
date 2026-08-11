@@ -19,18 +19,20 @@ export const metadata: Metadata = {
   },
 };
 
-// Runs before first paint so a light-mode user never sees a dark flash.
+// Runs before first paint so a dark-mode user never sees a flash, default is light mode.
 const THEME_SCRIPT = `
 try {
-  var t = localStorage.getItem('tasklog-theme');
-  if (t) document.documentElement.dataset.theme = t;
-} catch (e) {}
+  var t = localStorage.getItem('ember-theme') || localStorage.getItem('tasklog-theme') || 'light';
+  document.documentElement.dataset.theme = t;
+} catch (e) {
+  document.documentElement.dataset.theme = 'light';
+}
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" className={sans.variable} suppressHydrationWarning>
+      <html lang="en" data-theme="light" className={`light ${sans.variable}`} suppressHydrationWarning>
         <head>
           <link rel="icon" href="/icon.svg" type="image/svg+xml" />
           <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />

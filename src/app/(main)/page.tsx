@@ -13,6 +13,8 @@ import {
 import { daysUntil, longDate, relativeDue } from "@/lib/format";
 import { pulse } from "@/lib/pulse";
 import { getOwnerId } from "@/lib/auth";
+import { MotivationalQuote } from "@/components/motivational-quote";
+import { FlowHorizonBanner } from "@/components/flow-horizon-banner";
 import { Play, Code2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -28,6 +30,7 @@ export default async function TodayPage() {
   const doingTask = tasks.find((t) => t.status === "doing");
   const overdue = tasks.filter((t) => t.dueAt && daysUntil(t.dueAt) < 0 && t.id !== doingTask?.id);
   const rest = tasks.filter((t) => !overdue.includes(t) && t.id !== doingTask?.id);
+  const topTask = doingTask ?? overdue[0] ?? rest[0];
 
   const todayPulse = pulse({
     streak,
@@ -40,12 +43,18 @@ export default async function TodayPage() {
 
   return (
     <div className="space-y-8 animate-reveal pb-16 relative">
-      {/* Context Header */}
+      {/* Flow Horizon Command Banner (Greeting, Battery, 3D Quote, Top Task Spotlight) */}
+      <FlowHorizonBanner
+        streak={streak}
+        doneToday={closedToday.length}
+        openToday={tasks.length}
+        topTask={topTask}
+      />
+
+      {/* Context Header Pulse & Interactive Quote */}
       <section className="flex flex-col gap-4 border-b border-line/60 pb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-ink font-sans">
-          {longDate()}
-        </h1>
         <PulseBanner pulse={todayPulse} />
+        <MotivationalQuote />
       </section>
 
       {/* Navigation Sub-Tabs */}

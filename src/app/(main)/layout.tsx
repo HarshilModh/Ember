@@ -1,6 +1,7 @@
 import { completionStreak } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
 import { Sidebar, MobileHeader } from "@/components/chrome";
+import { AmbientSoundscapePlayer } from "@/components/ambient-soundscape";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 
@@ -15,7 +16,10 @@ export default async function MainLayout({ children }: { children: React.ReactNo
       <Sidebar streak={streak} />
       <div className="flex-1 flex flex-col overflow-y-auto min-w-0">
         <MobileHeader />
-        <div className="mx-auto w-full max-w-5xl px-4 md:px-8 py-6 md:py-8">
+        <div className="w-full max-w-5xl mx-auto px-4 md:px-8 pt-4 pb-2 flex justify-end">
+          <AmbientSoundscapePlayer />
+        </div>
+        <div className="mx-auto w-full max-w-5xl px-4 md:px-8 py-4 md:py-6">
           {children}
         </div>
       </div>
