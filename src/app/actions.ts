@@ -4,7 +4,7 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { attachTags, recordAttempt } from "@/db/queries";
+import { attachTags, createMcpToken, recordAttempt, revokeMcpToken } from "@/db/queries";
 import { logs, tasks, type Outcome } from "@/db/schema";
 import { getOwnerId } from "@/lib/auth";
 
@@ -124,4 +124,18 @@ export async function logPracticeAttempt(
   revalidatePath("/practice");
   refresh();
   redirect("/practice");
+}
+
+/** Returns the plaintext once — the only time it's ever available. */
+export async function generateMcpToken(label: string) {
+  const ownerId = await getOwnerId();
+  const result = await createMcpToken(ownerId, label);
+  revalidatePath("/settings");
+  return result;
+}
+
+export async function revokeToken(id: number) {
+  const ownerId = await getOwnerId();
+  await revokeMcpToken(ownerId, id);
+  revalidatePath("/settings");
 }

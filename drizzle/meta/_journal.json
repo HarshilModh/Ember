@@ -15,6 +15,13 @@
       "when": 1786469574881,
       "tag": "0001_mature_captain_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1786471210669,
+      "tag": "0002_tough_madrox",
+      "breakpoints": true
     }
   ]
 }

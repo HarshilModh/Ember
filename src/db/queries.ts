@@ -1,6 +1,20 @@
+import { randomBytes, createHash } from "crypto";
 import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, or, sql as raw } from "drizzle-orm";
 import { db } from "./client";
-import { attempts, logs, problems, tags, taskTags, tasks, type Log, type Outcome, type Problem, type Task } from "./schema";
+import {
+  attempts,
+  logs,
+  mcpTokens,
+  problems,
+  tags,
+  taskTags,
+  tasks,
+  type Log,
+  type McpToken,
+  type Outcome,
+  type Problem,
+  type Task,
+} from "./schema";
 import { nextReviewAt, nextSchedule } from "@/lib/scheduler";
 
 export const OPEN = ["todo", "doing"] as const;
@@ -462,4 +476,40 @@ export async function recordAttempt(
     .where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)));
 
   return nextAt;
+}
+
+// ---- Remote MCP tokens ----
+
+function hashToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/** Plaintext is returned once here and never again — only the hash is stored. */
+export async function createMcpToken(ownerId: string, label: string): Promise<{ id: number; token: string }> {
+  const token = `ember_${randomBytes(24).toString("base64url")}`;
+  const [row] = await db
+    .insert(mcpTokens)
+    .values({ ownerId, label: label.trim() || "Unnamed token", tokenHash: hashToken(token) })
+    .returning();
+  return { id: row.id, token };
+}
+
+export async function listMcpTokens(ownerId: string): Promise<McpToken[]> {
+  return db.select().from(mcpTokens).where(eq(mcpTokens.ownerId, ownerId)).orderBy(desc(mcpTokens.createdAt));
+}
+
+export async function revokeMcpToken(ownerId: string, id: number): Promise<void> {
+  await db.delete(mcpTokens).where(and(eq(mcpTokens.id, id), eq(mcpTokens.ownerId, ownerId)));
+}
+
+/** The only thing the remote MCP route trusts. Null means reject the request. */
+export async function resolveOwnerFromToken(token: string): Promise<string | null> {
+  const [row] = await db
+    .select()
+    .from(mcpTokens)
+    .where(eq(mcpTokens.tokenHash, hashToken(token)))
+    .limit(1);
+  if (!row) return null;
+  await db.update(mcpTokens).set({ lastUsedAt: new Date() }).where(eq(mcpTokens.id, row.id));
+  return row.ownerId;
 }

@@ -115,10 +115,20 @@ export function Sidebar({ streak = 0 }: { streak?: number }) {
           <span className="text-[12px] font-medium text-faint">Theme</span>
           <ThemeToggle />
         </div>
-        <div className="flex items-center gap-2.5 px-3.5 py-2">
-          <UserButton />
-          <span className="text-[12px] font-medium text-faint">Account</span>
+        <div className="flex items-center gap-2 px-2 py-1 rounded-xl hover:bg-surface/60 transition-all">
+          <UserButton
+            showName
+            appearance={{
+              elements: {
+                rootBox: "w-full",
+                userButtonTrigger: "w-full flex items-center gap-2.5 rounded-xl focus:shadow-none",
+                userButtonBox: "flex-row-reverse w-full justify-between",
+                userButtonOuterIdentifier: "text-[13px] font-medium text-muted normal-case",
+              },
+            }}
+          />
         </div>
+        <p className="px-3.5 text-[10px] text-faint">Click your name above to sign out</p>
       </div>
     </aside>
   );

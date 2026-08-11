@@ -128,3 +128,24 @@ export type Problem = typeof problems.$inferSelect;
 export type NewProblem = typeof problems.$inferInsert;
 export type Attempt = typeof attempts.$inferSelect;
 export type Outcome = "solved_clean" | "solved_hints" | "saw_solution" | "failed" | "accepted";
+
+/**
+ * Personal access tokens for the remote (HTTP) MCP server — the deployed
+ * site has no local process to trust the way the stdio server does, so a
+ * caller has to prove who it's acting for. Only the hash is ever stored; the
+ * plaintext is shown once at creation and is not recoverable after that.
+ */
+export const mcpTokens = pgTable(
+  "mcp_tokens",
+  {
+    id: serial("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    tokenHash: text("token_hash").notNull().unique(),
+    label: text("label").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  },
+  (t) => [index("mcp_tokens_owner_idx").on(t.ownerId)],
+);
+
+export type McpToken = typeof mcpTokens.$inferSelect;

@@ -179,7 +179,8 @@ data side; see [Auth](#auth) for the Clerk keys the deploy target also needs.
 
 ## MCP server
 
-Four tools. Resist adding more.
+Started as four tools; Phase 2 added two more for practice tracking (see
+below), bringing it to six across both transports. Resist adding more.
 
 | Tool | Input | Behavior |
 |---|---|---|
@@ -214,6 +215,27 @@ default driver error is unreadable inside an MCP client. Wrap the connection and
 return a plain message on failure, something like: `Cannot reach the ember
 database. Is the Docker container running? Try: docker compose up -d`. This is
 worth doing properly, since it is the failure that will actually happen.
+
+### Remote MCP server
+
+`src/app/api/mcp/route.ts` exposes the same tool set over Streamable HTTP for
+anyone who'd rather not run a local process. It shares tool logic with the
+stdio server via `src/mcp/tools.ts` — `createEmberMcpServer(ownerId)` — so
+the two transports can never drift apart on behavior, only on how `ownerId`
+gets resolved:
+
+- **stdio**: fixed once at process startup, from `EMBER_OWNER_EMAIL`.
+- **HTTP**: resolved per request from a personal access token (`mcp_tokens`
+  table, SHA-256 hashed, generated and revocable from Settings → Remote MCP
+  access). A fresh server and transport are created per request — stateless,
+  since different callers mean different owners and Vercel gives no
+  guarantee of a warm instance being the same caller twice.
+
+This is arguably the more secure option of the two: a token scopes to
+exactly one owner and revokes instantly, where the stdio route requires
+handing someone the actual database password. `/api/mcp` is carved out of
+Clerk's middleware protection (it has no browser session to check) and
+authenticates itself via the `Authorization: Bearer` header instead.
 
 ## UI
 

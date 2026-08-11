@@ -1,3 +1,5 @@
+import { headers } from "next/headers";
+import Link from "next/link";
 import {
   PlusCircle,
   Target,
@@ -22,6 +24,9 @@ export default async function HelpPage() {
   const ownerId = await getOwnerId();
   const databaseUrl = process.env.DATABASE_URL ?? "";
   const mcpPath = "/absolute/path/to/this/project/mcp/dist/server.mjs";
+  const h = await headers();
+  const host = h.get("host") ?? "localhost:3000";
+  const origin = `${host.includes("localhost") ? "http" : "https"}://${host}`;
 
   return (
     <div className="space-y-10 animate-reveal max-w-4xl pb-16">
@@ -92,24 +97,38 @@ export default async function HelpPage() {
               Did you know you can update your list just by talking to Claude? It's like having a personal assistant for your deep work.
             </p>
 
-            <details className="group mt-4 pt-2 border-t border-accent/15">
+            <div className="mt-4 p-4 bg-surface rounded-xl border border-line space-y-2">
+              <p className="text-xs font-semibold text-ink">Easiest way — nothing to install</p>
+              <p className="text-xs text-muted">
+                Generate a token on the <Link href="/settings" className="text-accent hover:underline">Settings</Link> page,
+                then give this to Claude:
+              </p>
+              <pre className="text-[11px] bg-raised p-3 rounded-lg border border-line/60 overflow-x-auto font-mono text-ink whitespace-pre-wrap break-all select-all">
+{`claude mcp add --transport http ember ${origin}/api/mcp \\
+  --header "Authorization: Bearer <token from Settings>"`}
+              </pre>
+              <p className="text-[11px] text-faint">
+                Every person gets their own token and only ever sees their own tasks through it. Revoke it
+                from Settings any time to cut access off immediately.
+              </p>
+            </div>
+
+            <details className="group mt-3 pt-2 border-t border-accent/15">
               <summary className="cursor-pointer text-accent font-semibold text-xs flex items-center gap-1 hover:underline select-none">
-                <span>View setup details for developers</span>
+                <span>Advanced: run it locally instead</span>
                 <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
               </summary>
               <div className="mt-3 p-4 bg-surface rounded-xl border border-line space-y-3">
                 <p className="text-xs text-muted">
-                  To connect Tasklog to Claude (via MCP), use this configuration pre-filled with your owner credentials:
+                  Needs a copy of this project's code and Node installed. Only worth it if you specifically
+                  want the connection running on your own machine rather than over the internet:
                 </p>
                 <pre className="text-[11px] bg-raised p-3 rounded-lg border border-line/60 overflow-x-auto font-mono text-ink whitespace-pre-wrap break-all select-all">
-{`claude mcp add tasklog -s user \\
+{`claude mcp add ember -s user \\
   -e "DATABASE_URL=${databaseUrl || "<your-database-url>"}" \\
   -e "EMBER_OWNER_EMAIL=${ownerId}" \\
   -- node ${mcpPath}`}
                 </pre>
-                <p className="text-[11px] text-faint">
-                  (Or run <code className="bg-raised px-1 py-0.5 rounded border border-line/50 text-ink">npx @tasklog/mcp-server</code> for standard npm configuration.)
-                </p>
               </div>
             </details>
           </div>
