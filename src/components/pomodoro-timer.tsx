@@ -1,114 +1,33 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   Play,
   Pause,
   RotateCcw,
   SkipForward,
   Flame,
-  Sparkles,
   Zap,
   Coffee,
   Sun,
-  Maximize2,
 } from "lucide-react";
 import { randomQuote, type QuoteItem } from "@/lib/quotes";
 import { AmbientSoundscapePlayer } from "./ambient-soundscape";
-
-type Phase = "focus" | "short_break" | "long_break";
-
-const DURATIONS: Record<Phase, number> = {
-  focus: 25 * 60,
-  short_break: 5 * 60,
-  long_break: 15 * 60,
-};
-
-const PHASE_LABEL: Record<Phase, string> = {
-  focus: "Deep Focus",
-  short_break: "Short Break",
-  long_break: "Long Break",
-};
-
-/** Every 4th focus session earns the long break. */
-function nextPhase(current: Phase, completedFocusCount: number): Phase {
-  if (current !== "focus") return "focus";
-  return (completedFocusCount + 1) % 4 === 0 ? "long_break" : "short_break";
-}
-
-function beep() {
-  try {
-    const AudioCtx = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
-    [660, 880, 1100].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + i * 0.15 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.15 + 0.14);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(ctx.currentTime + i * 0.15);
-      osc.stop(ctx.currentTime + i * 0.15 + 0.15);
-    });
-    setTimeout(() => void ctx.close(), 600);
-  } catch {}
-}
+import { useFocus, DURATIONS, PHASE_LABEL, type Phase } from "@/context/focus-context";
 
 export function PomodoroTimer() {
-  const [phase, setPhase] = useState<Phase>("focus");
-  const [secondsLeft, setSecondsLeft] = useState(DURATIONS.focus);
-  const [running, setRunning] = useState(false);
-  const [focusCount, setFocusCount] = useState(0);
-  const [quote, setQuote] = useState<QuoteItem>(() => randomQuote());
-  const focusCountRef = useRef(focusCount);
-  focusCountRef.current = focusCount;
+  const {
+    phase,
+    secondsLeft,
+    running,
+    focusCount,
+    toggleSession,
+    resetSession,
+    skipPhase,
+    switchPhase,
+  } = useFocus();
 
-  useEffect(() => {
-    if (!running) return;
-    const id = setInterval(() => setSecondsLeft((s) => s - 1), 1000);
-    return () => clearInterval(id);
-  }, [running]);
-
-  useEffect(() => {
-    if (secondsLeft > 0) return;
-    beep();
-    setPhase((current) => {
-      const wasFocus = current === "focus";
-      const next = nextPhase(current, focusCountRef.current);
-      if (wasFocus) setFocusCount((c) => c + 1);
-      setQuote(randomQuote());
-      setSecondsLeft(DURATIONS[next]);
-      return next;
-    });
-    setRunning(false);
-  }, [secondsLeft]);
-
-  function switchPhase(p: Phase) {
-    setRunning(false);
-    setPhase(p);
-    setSecondsLeft(DURATIONS[p]);
-  }
-
-  function toggle() {
-    setRunning((r) => !r);
-  }
-
-  function reset() {
-    setRunning(false);
-    setSecondsLeft(DURATIONS[phase]);
-  }
-
-  function skip() {
-    const next = nextPhase(phase, focusCount);
-    if (phase === "focus") setFocusCount((c) => c + 1);
-    setQuote(randomQuote());
-    setPhase(next);
-    setSecondsLeft(DURATIONS[next]);
-    setRunning(false);
-  }
+  const [quote] = useState<QuoteItem>(() => randomQuote());
 
   const mm = String(Math.floor(Math.max(0, secondsLeft) / 60)).padStart(2, "0");
   const ss = String(Math.max(0, secondsLeft) % 60).padStart(2, "0");
@@ -189,7 +108,6 @@ export function PomodoroTimer() {
       {/* SVG Radial Ring & Timer Centerpiece */}
       <div className="relative z-10 grid place-items-center my-2">
         <svg className="size-64 sm:size-72 -rotate-90 transform" viewBox="0 0 240 240">
-          {/* Background Track Circle */}
           <circle
             cx="120"
             cy="120"
@@ -198,7 +116,6 @@ export function PomodoroTimer() {
             strokeWidth="10"
             fill="transparent"
           />
-          {/* Animated Progress Ring */}
           <circle
             cx="120"
             cy="120"
@@ -243,7 +160,7 @@ export function PomodoroTimer() {
       <div className="relative z-10 flex items-center justify-center gap-3 w-full border-t border-line/40 pt-5">
         <button
           type="button"
-          onClick={toggle}
+          onClick={toggleSession}
           className={`flex items-center justify-center gap-2 px-8 py-3.5 rounded-2xl text-sm font-bold text-white transition-all active:scale-95 shadow-md ${
             running
               ? "bg-amber-600 hover:bg-amber-500"
@@ -257,7 +174,7 @@ export function PomodoroTimer() {
         <button
           type="button"
           title="Reset timer"
-          onClick={reset}
+          onClick={resetSession}
           className="p-3.5 rounded-2xl border border-line/80 bg-raised/70 text-muted hover:text-ink hover:bg-raised transition-all active:scale-95"
         >
           <RotateCcw className="size-5" />
@@ -266,7 +183,7 @@ export function PomodoroTimer() {
         <button
           type="button"
           title="Skip phase"
-          onClick={skip}
+          onClick={skipPhase}
           className="p-3.5 rounded-2xl border border-line/80 bg-raised/70 text-muted hover:text-ink hover:bg-raised transition-all active:scale-95"
         >
           <SkipForward className="size-5" />

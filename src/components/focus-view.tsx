@@ -17,10 +17,22 @@ import {
   FileText,
 } from "lucide-react";
 
+import { useFocus } from "@/context/focus-context";
+
 export function FocusView({ task, logs }: { task: Task; logs: Log[] }) {
   const router = useRouter();
+  const { setActiveTask } = useFocus();
   const [note, setNote] = useState("");
   const [pending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setActiveTask({
+      id: task.id,
+      title: task.title,
+      notes: task.notes,
+      priority: task.priority,
+    });
+  }, [task, setActiveTask]);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
