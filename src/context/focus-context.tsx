@@ -1,7 +1,8 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { soundscape, type SoundscapeType } from "@/lib/audio-synthesizer";
+import { useWakeLock } from "@/lib/use-wake-lock";
 
 export type Phase = "focus" | "short_break" | "long_break" | "custom";
 
@@ -72,6 +73,26 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
   const [audioPlaying, setAudioPlaying] = useState(false);
   const [activeAudioType, setActiveAudioType] = useState<SoundscapeType>("binaural");
 
+  // Keep the iPad awake for the duration of a running session — nobody
+  // wants a focus timer that pauses itself because the screen locked.
+  useWakeLock(running);
+
+  // Wall-clock deadline the countdown is racing toward. iPadOS throttles or
+  // fully suspends setInterval while the tab is backgrounded or the screen
+  // is locked, so every tick (and every visibility resume) recomputes
+  // secondsLeft from this instead of trusting an accumulated decrement —
+  // otherwise the timer silently drifts behind after any sleep.
+  const deadlineRef = useRef<number | null>(null);
+  const secondsLeftRef = useRef(secondsLeft);
+
+  useEffect(() => {
+    secondsLeftRef.current = secondsLeft;
+  }, [secondsLeft]);
+
+  useEffect(() => {
+    deadlineRef.current = running ? Date.now() + secondsLeftRef.current * 1000 : null;
+  }, [running, phase, totalDuration]);
+
   // Restore session from localStorage on mount
   useEffect(() => {
     try {
@@ -110,24 +131,26 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
 
     if (running) {
       interval = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            beep();
-            let nextP: Phase = "focus";
-            if (phase === "focus" || phase === "custom") {
-              const newCount = focusCount + 1;
-              setFocusCount(newCount);
-              nextP = newCount % 4 === 0 ? "long_break" : "short_break";
-            } else {
-              nextP = "focus";
-            }
-            setPhase(nextP);
-            setTotalDuration(DURATIONS[nextP]);
-            setRunning(false);
-            return DURATIONS[nextP];
+        if (deadlineRef.current === null) return;
+        const remaining = Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000));
+
+        if (remaining <= 0) {
+          beep();
+          let nextP: Phase = "focus";
+          if (phase === "focus" || phase === "custom") {
+            const newCount = focusCount + 1;
+            setFocusCount(newCount);
+            nextP = newCount % 4 === 0 ? "long_break" : "short_break";
+          } else {
+            nextP = "focus";
           }
-          return prev - 1;
-        });
+          setPhase(nextP);
+          setTotalDuration(DURATIONS[nextP]);
+          setRunning(false);
+          setSecondsLeft(DURATIONS[nextP]);
+        } else {
+          setSecondsLeft(remaining);
+        }
       }, 1000);
     }
 
@@ -156,6 +179,13 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     const originalTitle = document.title || "Ember — Deep Work";
 
     function handleVisibility() {
+      // The interval above may have been fully suspended while backgrounded;
+      // snap the displayed time back to the truth immediately on return
+      // instead of waiting up to a second for the next tick.
+      if (!document.hidden && deadlineRef.current !== null) {
+        setSecondsLeft(Math.max(0, Math.ceil((deadlineRef.current - Date.now()) / 1000)));
+      }
+
       if (document.hidden && running) {
         let toggle = false;
         titleInterval = setInterval(() => {

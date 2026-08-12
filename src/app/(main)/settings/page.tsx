@@ -1,13 +1,17 @@
 import { ThemePicker } from "@/components/theme-picker";
 import { TokenManager } from "@/components/token-manager";
+import { ExportDataButton } from "@/components/export-data-button";
 import { listMcpTokens } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
-import { Code2, Keyboard, Palette, Radio } from "lucide-react";
+import { Code2, Download, Keyboard, Palette, Radio } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
 const SHORTCUTS = [
   { keys: "N or /", does: "Focus the add-task field" },
+  { keys: "⌘K or Ctrl+K", does: "Open the command palette — jump to a page or search tasks" },
+  { keys: "Space", does: "On a focused task row: complete it, or reopen if closed" },
+  { keys: "Delete", does: "On a focused task row: drop it" },
   { keys: "Esc", does: "In focus mode: clear a half-typed note, then leave" },
   { keys: "Enter", does: "Submit the add-task or log-note form" },
 ];
@@ -69,6 +73,18 @@ export default async function SettingsPage() {
             logging still works through the <span className="font-mono">log_attempt</span> MCP tool.
           </p>
         )}
+      </section>
+
+      <section className="bg-surface rounded-2xl border border-line p-6 shadow-2xs space-y-3">
+        <h2 className="text-sm font-bold text-ink flex items-center gap-2">
+          <Download className="size-4 text-accent" />
+          Export data
+        </h2>
+        <p className="text-xs text-muted">
+          Downloads every task and log note you own as a single JSON file — a backup, or a starting
+          point for moving your data elsewhere. On iPad this opens the standard save-to-Files sheet.
+        </p>
+        <ExportDataButton />
       </section>
 
       <section className="bg-surface rounded-2xl border border-line p-6 shadow-2xs space-y-3">

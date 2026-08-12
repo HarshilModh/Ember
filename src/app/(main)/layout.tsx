@@ -8,6 +8,7 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 
 import { OnboardingModal } from "@/components/onboarding-modal";
+import { CommandPalette } from "@/components/command-palette";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
 
   return (
     <FocusProvider>
-      <div className="flex flex-col md:flex-row h-screen overflow-hidden bg-bg text-ink">
+      <div className="flex flex-col md:flex-row h-dvh overflow-hidden bg-bg text-ink">
         <Sidebar streak={streak} />
         <div className="flex-1 flex flex-col overflow-y-auto min-w-0">
           <MobileHeader />
@@ -32,6 +33,9 @@ export default async function MainLayout({ children }: { children: React.ReactNo
         {/* Onboarding Welcome Tour for First-time Users */}
         <OnboardingModal />
 
+        {/* Cmd+K / Ctrl+K jump-to-page and task search */}
+        <CommandPalette />
+
         {/* Persistent Floating Mini Focus HUD */}
         <MiniFocusDock />
 
@@ -39,7 +43,7 @@ export default async function MainLayout({ children }: { children: React.ReactNo
         <Link
           href="/focus"
           title="Start Focus Session"
-          className="fixed bottom-6 right-6 md:right-12 size-14 bg-accent text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all backdrop-blur-md z-50 group border border-white/20"
+          className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] right-[calc(1.5rem+env(safe-area-inset-right))] md:right-12 size-14 bg-accent text-white rounded-full flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all backdrop-blur-md z-50 group border border-white/20"
         >
           <Plus className="size-7 group-hover:rotate-90 transition-transform duration-300" />
         </Link>

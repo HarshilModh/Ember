@@ -43,7 +43,7 @@ export default async function TodayPage() {
 
   return (
     <div className="space-y-8 animate-reveal pb-16 relative">
-      {/* Flow Horizon Command Banner (Greeting, Battery, 3D Quote, Top Task Spotlight) */}
+      {/* Flow Horizon Command Banner */}
       <FlowHorizonBanner
         streak={streak}
         doneToday={closedToday.length}

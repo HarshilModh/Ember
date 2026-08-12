@@ -52,6 +52,8 @@ export function AddTask({ dueToday = false }: { dueToday?: boolean }) {
           required
           placeholder="Add a new task…"
           onFocus={() => setOpen(true)}
+          enterKeyHint="done"
+          autoCapitalize="sentences"
           className="min-w-0 flex-1 bg-transparent py-1.5 text-[15px] outline-none placeholder:text-faint font-medium"
         />
         <div className="hidden sm:flex items-center gap-1 mr-2 opacity-70">
@@ -105,6 +107,9 @@ export function AddTask({ dueToday = false }: { dueToday?: boolean }) {
             <input
               name="tags"
               placeholder="tags (comma separated)"
+              enterKeyHint="next"
+              autoCapitalize="none"
+              autoCorrect="off"
               className="w-full bg-transparent outline-none placeholder:text-faint"
             />
           </div>
@@ -114,6 +119,8 @@ export function AddTask({ dueToday = false }: { dueToday?: boolean }) {
             <input
               name="notes"
               placeholder="additional notes"
+              enterKeyHint="done"
+              autoCapitalize="sentences"
               className="w-full bg-transparent outline-none placeholder:text-faint"
             />
           </div>

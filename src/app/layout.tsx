@@ -14,9 +14,14 @@ export const metadata: Metadata = {
   description: "A high-performance deep work, practice, and task logger built for iPad & Web.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icon.svg",
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32.png", sizes: "32x32", type: "image/png" },
+    ],
     shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    // iOS ignores SVG for the home-screen icon — without a PNG here,
+    // "Add to Home Screen" falls back to a screenshot thumbnail.
+    apple: "/icon-180.png",
   },
   appleWebApp: {
     capable: true,
@@ -28,8 +33,11 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Capped, not disabled: WCAG 1.4.4 requires users be able to zoom to
+  // 200%, and userScalable:false also blocks it in the installed PWA
+  // (Safari ignores the restriction in-browser, but not standalone).
+  maximumScale: 5,
+  userScalable: true,
   viewportFit: "cover",
 };
 
@@ -48,14 +56,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <ClerkProvider>
       <html lang="en" data-theme="light" className={`light ${sans.variable}`} suppressHydrationWarning>
         <head>
-          <link rel="icon" href="/icon.svg" type="image/svg+xml" />
-          <link rel="apple-touch-icon" href="/icon.svg" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
           <meta name="apple-mobile-web-app-title" content="Ember" />
           <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
         </head>
-        <body className="min-h-dvh antialiased font-sans touch-manipulation select-none">{children}</body>
+        <body className="min-h-dvh antialiased font-sans touch-manipulation">{children}</body>
       </html>
     </ClerkProvider>
   );

@@ -1,5 +1,5 @@
 import { randomBytes, createHash } from "crypto";
-import { and, asc, desc, eq, gte, inArray, isNotNull, lt, lte, or, sql as raw } from "drizzle-orm";
+import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, or, sql as raw } from "drizzle-orm";
 import { db } from "./client";
 import {
   attempts,
@@ -90,6 +90,15 @@ export async function recentlyClosedTasks(ownerId: string, days = 7): Promise<Ta
     .limit(50);
 }
 
+/** Every task and log note this owner has, for the Settings export button. */
+export async function exportAllTasks(ownerId: string): Promise<{ tasks: Task[]; logs: Log[] }> {
+  const [taskRows, logRows] = await Promise.all([
+    db.select().from(tasks).where(eq(tasks.ownerId, ownerId)).orderBy(asc(tasks.createdAt)),
+    db.select().from(logs).where(eq(logs.ownerId, ownerId)).orderBy(asc(logs.createdAt)),
+  ]);
+  return { tasks: taskRows, logs: logRows };
+}
+
 /** Completed today — the visible-progress list for the Today view. */
 export async function doneTodayTasks(ownerId: string): Promise<Task[]> {
   return db
@@ -97,6 +106,16 @@ export async function doneTodayTasks(ownerId: string): Promise<Task[]> {
     .from(tasks)
     .where(and(eq(tasks.ownerId, ownerId), eq(tasks.status, "done"), gte(tasks.completedAt, startOfToday())))
     .orderBy(desc(tasks.completedAt));
+}
+
+/** Title search for the command palette — open tasks first, then closed. */
+export async function searchTasks(ownerId: string, query: string, limit = 8): Promise<Task[]> {
+  return db
+    .select()
+    .from(tasks)
+    .where(and(eq(tasks.ownerId, ownerId), ilike(tasks.title, `%${query}%`)))
+    .orderBy(desc(inArray(tasks.status, [...OPEN])), asc(tasks.title))
+    .limit(limit);
 }
 
 /** Scoped by owner so one person can never load another's task by guessing an id. */

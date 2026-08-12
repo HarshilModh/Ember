@@ -4,8 +4,8 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { attachTags, createMcpToken, recordAttempt, revokeMcpToken } from "@/db/queries";
-import { logs, tasks, type Outcome } from "@/db/schema";
+import { attachTags, createMcpToken, exportAllTasks, recordAttempt, revokeMcpToken, searchTasks } from "@/db/queries";
+import { logs, tasks, type Outcome, type Task } from "@/db/schema";
 import { getOwnerId } from "@/lib/auth";
 import { endOfDay } from "@/lib/timezone";
 
@@ -103,7 +103,11 @@ export async function startFocus(id: number) {
     .set({ status: "doing" })
     .where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)));
   refresh();
-  redirect(`/focus/${id}`);
+  // Not /focus/${id} — that standalone route renders FocusView with no
+  // FocusProvider ancestor and crashes on every visit. The query-param form
+  // is the one route group actually wrapped in the provider (see
+  // src/app/(main)/layout.tsx), and is what MiniFocusDock already links to.
+  redirect(`/focus?id=${id}`);
 }
 
 export async function completeAndLeaveFocus(id: number) {
@@ -128,6 +132,23 @@ export async function logPracticeAttempt(
   revalidatePath("/practice");
   refresh();
   redirect("/practice");
+}
+
+/** Command palette task search — title only, nothing sensitive to leak. */
+export async function searchTasksAction(
+  query: string,
+): Promise<Pick<Task, "id" | "title" | "status" | "priority">[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const ownerId = await getOwnerId();
+  const rows = await searchTasks(ownerId, q);
+  return rows.map(({ id, title, status, priority }) => ({ id, title, status, priority }));
+}
+
+/** Everything this owner has, for the Settings "Export as JSON" button. */
+export async function exportData() {
+  const ownerId = await getOwnerId();
+  return exportAllTasks(ownerId);
 }
 
 /** Returns the plaintext once — the only time it's ever available. */

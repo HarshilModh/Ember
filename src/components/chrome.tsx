@@ -22,7 +22,7 @@ import {
   Brain
 } from "lucide-react";
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   { href: "/", label: "Log", icon: NotebookPen },
   { href: "/practice", label: "Practice", icon: Code2 },
   { href: "/focus", label: "Focus", icon: Target },
@@ -34,7 +34,7 @@ export function Sidebar({ streak = 0 }: { streak?: number }) {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden md:flex h-screen w-64 flex-col border-r border-line/60 bg-surface/50 px-4 py-6 shrink-0 z-20">
+    <aside className="hidden md:flex h-dvh w-64 flex-col border-r border-line/60 bg-surface/50 py-6 pr-4 pl-[calc(1rem+env(safe-area-inset-left))] shrink-0 z-20 select-none">
       {/* Brand Header */}
       <div className="px-2 mb-6 flex items-center gap-3">
         <div className="grid size-9 place-items-center rounded-xl bg-accent text-white shadow-sm">
@@ -139,7 +139,7 @@ export function MobileHeader() {
   const pathname = usePathname();
 
   return (
-    <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-16 w-full bg-surface/90 backdrop-blur-md border-b border-line/60">
+    <header className="md:hidden sticky top-0 z-30 flex items-center justify-between px-4 min-h-16 pt-[env(safe-area-inset-top)] w-full bg-surface/90 backdrop-blur-md border-b border-line/60 select-none">
       <div className="flex items-center gap-2">
         <div className="grid size-7 place-items-center rounded-lg bg-accent text-white">
           <Brain className="size-4" />
@@ -159,7 +159,7 @@ export function MobileHeader() {
       </div>
 
       {menuOpen && (
-        <div className="absolute top-16 left-0 right-0 bg-bg border-b border-line p-4 flex flex-col gap-2 shadow-xl animate-reveal">
+        <div className="absolute top-16 left-0 right-0 bg-bg border-b border-line p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] flex flex-col gap-2 shadow-xl animate-reveal select-none">
           {NAV_ITEMS.map((tab) => {
             const active = pathname === tab.href;
             const Icon = tab.icon;
@@ -168,7 +168,7 @@ export function MobileHeader() {
                 key={tab.href}
                 href={tab.href}
                 onClick={() => setMenuOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
+                className={`flex items-center gap-3 px-3 py-3 rounded-lg text-sm font-medium ${
                   active ? "bg-accent/15 text-accent font-semibold" : "text-muted"
                 }`}
               >

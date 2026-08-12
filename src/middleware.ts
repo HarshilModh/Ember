@@ -12,7 +12,11 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // manifest.json is matched explicitly (not just added to the extension
+    // list below) because that list deliberately excludes plain ".json" via
+    // a negative lookahead, so a dynamic *.json route can never accidentally
+    // skip auth — this PWA manifest is the one legitimate static exception.
+    "/((?!_next|manifest\\.json|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
     "/__clerk/:path*",
   ],
