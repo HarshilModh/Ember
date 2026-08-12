@@ -32,7 +32,6 @@ export function AnnotationOverlay() {
   const currentPathRef = useRef<SVGPathElement | null>(null);
 
   function onPointerDown(e: React.PointerEvent<SVGSVGElement>) {
-    console.log("[DEBUG] onPointerDown fired", e.pointerId, e.pointerType, activePointerId.current);
     if (activePointerId.current !== null) return;
     activePointerId.current = e.pointerId;
     safeSetPointerCapture(e.currentTarget, e.pointerId);

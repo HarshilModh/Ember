@@ -24,6 +24,9 @@ interface DragState {
 interface GestureState {
   pointerId: number;
   points: { x: number; y: number }[];
+  startX: number;
+  startY: number;
+  committed: boolean;
 }
 
 /**
@@ -133,7 +136,13 @@ export function TaskRow({ task, tags = [] }: { task: Task; tags?: string[] }) {
 
     if (e.pointerType === "pen") {
       const rect = e.currentTarget.getBoundingClientRect();
-      gestureRef.current = { pointerId: e.pointerId, points: [{ x: e.clientX - rect.left, y: e.clientY - rect.top }] };
+      gestureRef.current = {
+        pointerId: e.pointerId,
+        points: [{ x: e.clientX - rect.left, y: e.clientY - rect.top }],
+        startX: e.clientX,
+        startY: e.clientY,
+        committed: false,
+      };
       return;
     }
 
@@ -144,9 +153,32 @@ export function TaskRow({ task, tags = [] }: { task: Task; tags?: string[] }) {
   function onPointerMove(e: React.PointerEvent<HTMLLIElement>) {
     const g = gestureRef.current;
     if (g && g.pointerId === e.pointerId) {
-      e.preventDefault();
       const rect = e.currentTarget.getBoundingClientRect();
-      g.points.push({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+      const point = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+
+      if (!g.committed) {
+        // Same early direction check the touch swipe below makes, because
+        // iPadOS locks a touch/pen session into native scrolling within the
+        // first ~10px of movement — deciding any later than that can't
+        // reclaim it. The ratio is looser than swipe's so a diagonal X
+        // stroke still commits, but a mostly-vertical drag (someone just
+        // trying to scroll the list with the Pencil) is released untouched.
+        const dx = e.clientX - g.startX;
+        const dy = e.clientY - g.startY;
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 0.6) {
+          g.committed = true;
+          safeSetPointerCapture(e.currentTarget, e.pointerId);
+        } else if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+          gestureRef.current = null; // clearly a scroll — hand off entirely
+          return;
+        } else {
+          g.points.push(point); // still ambiguous, keep sampling quietly
+          return;
+        }
+      }
+
+      e.preventDefault();
+      g.points.push(point);
       updateGesturePath();
       return;
     }
@@ -186,6 +218,9 @@ export function TaskRow({ task, tags = [] }: { task: Task; tags?: string[] }) {
   function endDrag(e: React.PointerEvent<HTMLLIElement>) {
     const g = gestureRef.current;
     if (g && g.pointerId === e.pointerId) {
+      if (g.committed && e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
       const outcome = classifyGesture(g.points);
       if (outcome === "strike") {
         clearGesture(false);
