@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -149,3 +150,24 @@ export const mcpTokens = pgTable(
 );
 
 export type McpToken = typeof mcpTokens.$inferSelect;
+
+/**
+ * One row per owner — the pomodoro timer follows a person across devices,
+ * not any single browser. `secondsLeft` is a snapshot taken whenever `running`
+ * or `phase` changes (not on every 1s tick); readers reconstruct the live
+ * countdown from `secondsLeft` + `updatedAt` the same way the old
+ * localStorage-only restore logic did, just now across devices instead of
+ * across page reloads.
+ */
+export const focusSessions = pgTable("focus_sessions", {
+  ownerId: text("owner_id").primaryKey(),
+  phase: text("phase").notNull().default("focus"),
+  running: boolean("running").notNull().default(false),
+  secondsLeft: integer("seconds_left").notNull(),
+  totalDuration: integer("total_duration").notNull(),
+  focusCount: integer("focus_count").notNull().default(0),
+  activeTaskId: integer("active_task_id").references(() => tasks.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type FocusSessionRow = typeof focusSessions.$inferSelect;

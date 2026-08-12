@@ -3,12 +3,14 @@ import { and, asc, desc, eq, gte, ilike, inArray, isNotNull, lt, lte, or, sql as
 import { db } from "./client";
 import {
   attempts,
+  focusSessions,
   logs,
   mcpTokens,
   problems,
   tags,
   taskTags,
   tasks,
+  type FocusSessionRow,
   type Log,
   type McpToken,
   type Outcome,
@@ -512,6 +514,34 @@ export async function listMcpTokens(ownerId: string): Promise<McpToken[]> {
 
 export async function revokeMcpToken(ownerId: string, id: number): Promise<void> {
   await db.delete(mcpTokens).where(and(eq(mcpTokens.id, id), eq(mcpTokens.ownerId, ownerId)));
+}
+
+/** Cross-device read: the mac and the ipad both call this for the same owner. */
+export async function getFocusSession(ownerId: string): Promise<FocusSessionRow | undefined> {
+  const [row] = await db.select().from(focusSessions).where(eq(focusSessions.ownerId, ownerId)).limit(1);
+  return row;
+}
+
+export async function saveFocusSession(
+  ownerId: string,
+  input: {
+    phase: string;
+    running: boolean;
+    secondsLeft: number;
+    totalDuration: number;
+    focusCount: number;
+    activeTaskId: number | null;
+  },
+): Promise<FocusSessionRow> {
+  const [row] = await db
+    .insert(focusSessions)
+    .values({ ownerId, ...input, updatedAt: new Date() })
+    .onConflictDoUpdate({
+      target: focusSessions.ownerId,
+      set: { ...input, updatedAt: new Date() },
+    })
+    .returning();
+  return row;
 }
 
 /** The only thing the remote MCP route trusts. Null means reject the request. */

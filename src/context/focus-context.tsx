@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { soundscape, type SoundscapeType } from "@/lib/audio-synthesizer";
 import { useWakeLock } from "@/lib/use-wake-lock";
+import { fetchFocusSession, pushFocusSession, type RemoteFocusState } from "@/app/focus-actions";
 
 export type Phase = "focus" | "short_break" | "long_break" | "custom";
 
@@ -93,14 +94,50 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     deadlineRef.current = running ? Date.now() + secondsLeftRef.current * 1000 : null;
   }, [running, phase, totalDuration]);
 
-  // Restore session from localStorage on mount
+  // Timestamp (ms) of whichever state — local or remote — is currently
+  // applied. Lets the poller tell a genuinely newer server row apart from an
+  // echo of the write this same tab just made.
+  const stateStampRef = useRef(0);
+  // Cross-device sync only starts pushing once the initial local/remote
+  // merge below has resolved — otherwise a freshly mounted tab would briefly
+  // broadcast its blank default state and clobber a session started elsewhere.
+  const hydratedRef = useRef(false);
+
+  const applyRemote = useCallback((remote: RemoteFocusState) => {
+    stateStampRef.current = remote.updatedAt;
+    setPhase(remote.phase);
+    setTotalDuration(remote.totalDuration);
+    setFocusCount(remote.focusCount);
+    setActiveTaskState(remote.activeTask);
+
+    if (remote.running) {
+      const elapsed = Math.floor((Date.now() - remote.updatedAt) / 1000);
+      const remaining = remote.secondsLeft - elapsed;
+      if (remaining > 0) {
+        setSecondsLeft(remaining);
+        setRunning(true);
+      } else {
+        setSecondsLeft(0);
+        setRunning(false);
+      }
+    } else {
+      setSecondsLeft(remote.secondsLeft);
+      setRunning(false);
+    }
+  }, []);
+
+  // Restore session from localStorage on mount, then reconcile against the
+  // server — whichever of the two was touched more recently wins, so a
+  // session started on another device shows up here even on a cold load.
   useEffect(() => {
+    let localStamp = 0;
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const data: SavedSession = JSON.parse(raw);
         const savedPhase = data.phase || "focus";
         const savedTotal = data.totalDuration || DURATIONS[savedPhase] || DURATIONS.focus;
+        localStamp = data.lastUpdated || 0;
 
         setPhase(savedPhase);
         setTotalDuration(savedTotal);
@@ -123,7 +160,61 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch (e) {}
-  }, []);
+    stateStampRef.current = localStamp;
+
+    fetchFocusSession()
+      .then((remote) => {
+        if (remote && remote.updatedAt > stateStampRef.current) applyRemote(remote);
+      })
+      .catch(() => {})
+      .finally(() => {
+        hydratedRef.current = true;
+      });
+  }, [applyRemote]);
+
+  // Poll for changes made on other devices — this is what makes "start focus
+  // on the mac, pick it up on the ipad" actually work. Also re-checks
+  // immediately whenever the tab/app regains visibility, since that's the
+  // exact moment of switching devices.
+  useEffect(() => {
+    function poll() {
+      if (document.hidden) return;
+      fetchFocusSession()
+        .then((remote) => {
+          if (remote && remote.updatedAt > stateStampRef.current) applyRemote(remote);
+        })
+        .catch(() => {});
+    }
+    const interval = setInterval(poll, 6000);
+    document.addEventListener("visibilitychange", poll);
+    window.addEventListener("focus", poll);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", poll);
+      window.removeEventListener("focus", poll);
+    };
+  }, [applyRemote]);
+
+  // Push state to the server whenever it meaningfully changes (not on every
+  // 1s tick — other devices reconstruct the live countdown from a snapshot +
+  // timestamp, same as the localStorage restore above always has).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const stamp = Date.now();
+    stateStampRef.current = stamp;
+    pushFocusSession({
+      phase,
+      running,
+      secondsLeft: secondsLeftRef.current,
+      totalDuration,
+      focusCount,
+      activeTaskId: activeTask?.id ?? null,
+    })
+      .then((serverStamp) => {
+        stateStampRef.current = serverStamp;
+      })
+      .catch(() => {});
+  }, [running, phase, totalDuration, focusCount, activeTask]);
 
   // Save session state & handle clock ticks
   useEffect(() => {
