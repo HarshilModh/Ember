@@ -150,6 +150,36 @@ export function FocusProvider({ children }: { children: React.ReactNode }) {
     };
   }, [running, phase, secondsLeft, totalDuration, focusCount, activeTask]);
 
+  // Tab Distraction Shield & Title Flasher
+  useEffect(() => {
+    let titleInterval: ReturnType<typeof setInterval> | null = null;
+    const originalTitle = document.title || "Ember — Deep Work";
+
+    function handleVisibility() {
+      if (document.hidden && running) {
+        let toggle = false;
+        titleInterval = setInterval(() => {
+          const mm = String(Math.floor(Math.max(0, secondsLeft) / 60)).padStart(2, "0");
+          const ss = String(Math.max(0, secondsLeft) % 60).padStart(2, "0");
+          document.title = toggle
+            ? `⚠️ Flow Active (${mm}:${ss}) — Ember`
+            : `⚡ Return to Task (${mm}:${ss}) — Ember`;
+          toggle = !toggle;
+        }, 1200);
+      } else {
+        if (titleInterval) clearInterval(titleInterval);
+        document.title = originalTitle;
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      if (titleInterval) clearInterval(titleInterval);
+      document.title = originalTitle;
+    };
+  }, [running, secondsLeft]);
+
   function beep() {
     try {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;

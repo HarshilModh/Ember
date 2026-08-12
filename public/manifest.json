@@ -1,0 +1,16 @@
+{
+  "name": "Ember — Deep Work & Task Command",
+  "short_name": "Ember",
+  "description": "High-impact productivity, Pomodoro flow, and task logger built for iPad.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#faf8ff",
+  "theme_color": "#006c49",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}

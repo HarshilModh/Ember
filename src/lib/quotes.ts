@@ -52,3 +52,24 @@ export function randomQuote(exclude?: { text: string }): QuoteItem {
   const pool = exclude ? QUOTES.filter((q) => q.text !== exclude.text) : QUOTES;
   return pool[Math.floor(Math.random() * pool.length)];
 }
+
+/** Dynamic live quote fetcher from public Quotes API with instant static fallback */
+export async function fetchDynamicQuote(): Promise<QuoteItem> {
+  try {
+    const res = await fetch("https://dummyjson.com/quotes/random", {
+      next: { revalidate: 60 },
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.quote && data.author) {
+        return {
+          text: data.quote,
+          who: data.author,
+          category: "Mindset",
+        };
+      }
+    }
+  } catch (e) {}
+
+  return randomQuote();
+}

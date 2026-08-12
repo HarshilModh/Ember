@@ -10,11 +10,12 @@ import {
   Play,
   RotateCw,
   Sparkles,
-  Trophy,
   Quote,
   Target,
-  ArrowRight,
   CheckCircle2,
+  Volume2,
+  Copy,
+  Check,
 } from "lucide-react";
 
 export function FlowHorizonBanner({
@@ -30,8 +31,8 @@ export function FlowHorizonBanner({
   topTask?: Task;
   initialQuote?: QuoteItem;
 }) {
-  const [flipped, setFlipped] = useState(false);
   const [quote, setQuote] = useState<QuoteItem>(() => initialQuote ?? quoteOfTheDay());
+  const [copied, setCopied] = useState(false);
 
   // Momentum Battery percentage: done vs (done + open)
   const total = doneToday + openToday;
@@ -46,11 +47,24 @@ export function FlowHorizonBanner({
       ? "Good Afternoon"
       : "Good Evening";
 
-  function handleFlip() {
-    setFlipped(!flipped);
-    if (!flipped) {
-      setQuote((prev) => randomQuote(prev));
-    }
+  function handleShuffleQuote() {
+    setQuote((prev) => randomQuote(prev));
+  }
+
+  function handleSpeakQuote() {
+    if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const textToSpeak = `"${quote.text}" by ${quote.who}`;
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
+  }
+
+  function handleCopyQuote() {
+    if (typeof navigator === "undefined") return;
+    navigator.clipboard.writeText(`"${quote.text}" — ${quote.who}`);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   }
 
   return (
@@ -110,44 +124,62 @@ export function FlowHorizonBanner({
         </div>
       </div>
 
-      {/* Grid: 3D Mindset Card Flip + Top 1 Flow Horizon Spotlight */}
+      {/* Grid: Daily Wisdom & Top 1 Flow Horizon Spotlight */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* 1. 3D Mindset Oracle Card Flip */}
-        <div
-          onClick={handleFlip}
-          className="cursor-pointer group relative perspective-1000 min-h-[170px]"
-          title="Click to flip quote oracle"
-        >
-          <div
-            className={`relative w-full h-full rounded-3xl border border-line/80 bg-surface p-6 shadow-2xs transition-all duration-500 transform-style-3d hover:border-accent/40 ${
-              flipped ? "rotate-y-180 bg-accent/5 border-accent/30" : ""
-            }`}
-          >
-            {/* Front of Card */}
-            <div className="flex flex-col justify-between h-full backface-hidden">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/10 px-2.5 py-0.5 rounded-full border border-accent/20 flex items-center gap-1">
-                  <Quote className="size-3" />
-                  3D Mindset Card
-                </span>
-                <span className="text-xs font-semibold text-faint flex items-center gap-1 group-hover:text-accent transition-colors">
-                  <RotateCw className="size-3.5" />
-                  Tap to Flip
-                </span>
-              </div>
+        {/* 1. Daily Wisdom Card with Interactive Action Toolbar */}
+        <div className="rounded-3xl border border-line/80 bg-surface p-6 shadow-2xs flex flex-col justify-between relative overflow-hidden group hover:border-accent/40 transition-all">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/10 px-2.5 py-0.5 rounded-full border border-accent/20 flex items-center gap-1">
+              <Quote className="size-3" />
+              Daily Mindset Wisdom
+            </span>
 
-              <div className="my-3">
-                <p className="text-base font-bold text-ink leading-snug line-clamp-2">
-                  "{quote.text}"
-                </p>
-                <p className="text-xs font-semibold text-muted mt-1">— {quote.who}</p>
-              </div>
+            {/* Quote Action Toolbar */}
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={handleSpeakQuote}
+                title="Listen to quote"
+                className="p-1.5 rounded-xl border border-line/60 bg-raised/50 text-muted hover:text-accent hover:bg-raised transition-all active:scale-95 text-xs flex items-center gap-1"
+              >
+                <Volume2 className="size-3.5" />
+                <span className="hidden sm:inline">Listen</span>
+              </button>
 
-              <div className="text-[11px] text-faint flex items-center gap-1 font-medium">
-                <Sparkles className="size-3 text-amber-500" />
-                <span>Daily mindset trigger</span>
-              </div>
+              <button
+                type="button"
+                onClick={handleCopyQuote}
+                title="Copy quote to clipboard"
+                className="p-1.5 rounded-xl border border-line/60 bg-raised/50 text-muted hover:text-accent hover:bg-raised transition-all active:scale-95 text-xs flex items-center gap-1"
+              >
+                {copied ? <Check className="size-3.5 text-emerald-500" /> : <Copy className="size-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShuffleQuote}
+                title="Shuffle new quote"
+                className="p-1.5 rounded-xl border border-line/60 bg-raised/50 text-muted hover:text-accent hover:bg-raised transition-all active:scale-95 text-xs flex items-center gap-1"
+              >
+                <RotateCw className="size-3.5" />
+                <span className="hidden sm:inline">Shuffle</span>
+              </button>
             </div>
+          </div>
+
+          <div className="my-4">
+            <p className="text-base font-bold text-ink leading-snug line-clamp-3">
+              "{quote.text}"
+            </p>
+            <p className="text-xs font-semibold text-muted mt-1.5">— {quote.who}</p>
+          </div>
+
+          <div className="pt-3 border-t border-line/40 flex items-center justify-between text-[11px] text-faint font-semibold">
+            <span className="flex items-center gap-1">
+              <Sparkles className="size-3 text-amber-500" />
+              Mindset trigger for deep work
+            </span>
+            <span className="text-accent font-bold">{quote.category ?? "Focus"}</span>
           </div>
         </div>
 
