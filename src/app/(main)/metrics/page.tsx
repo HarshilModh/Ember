@@ -1,6 +1,8 @@
 import { attemptsInLast, completionStreak, completionsByDay, doneToday, practiceStats, weeklyRollup } from "@/db/queries";
 import { Flame, CheckCircle2, Trophy, ListChecks, Target, TrendingUp, XCircle, ScrollText, Code2 } from "lucide-react";
 import { getOwnerId } from "@/lib/auth";
+import { isInkNote, inkNoteImageSrc } from "@/lib/ink-note";
+import { AnnotationOverlay } from "@/components/annotation-overlay";
 
 export const dynamic = "force-dynamic";
 
@@ -160,12 +162,22 @@ export default async function MetricsPage() {
                     {task.title}
                   </p>
                   {notes.length > 0 ? (
-                    <ul className="mt-1 space-y-0.5">
-                      {notes.map((n) => (
-                        <li key={n.id} className="text-xs text-muted before:content-['—_'] before:text-faint">
-                          {n.note}
-                        </li>
-                      ))}
+                    <ul className="mt-1 space-y-1.5">
+                      {notes.map((n) =>
+                        isInkNote(n.note) ? (
+                          <li key={n.id}>
+                            <img
+                              src={inkNoteImageSrc(n.note)}
+                              alt="Handwritten log note"
+                              className="h-10 max-w-[220px] rounded border border-line/50 bg-raised/50"
+                            />
+                          </li>
+                        ) : (
+                          <li key={n.id} className="text-xs text-muted before:content-['—_'] before:text-faint">
+                            {n.note}
+                          </li>
+                        )
+                      )}
                     </ul>
                   ) : null}
                 </div>
@@ -192,6 +204,8 @@ export default async function MetricsPage() {
           </div>
         )}
       </div>
+
+      <AnnotationOverlay />
     </div>
   );
 }

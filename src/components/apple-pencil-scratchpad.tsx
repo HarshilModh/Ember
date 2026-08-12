@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { PenTool, X, Trash2, Undo2, Download, Eraser, Grid, Check } from "lucide-react";
+import { safeSetPointerCapture } from "@/lib/pointer";
 
 interface StrokePoint {
   x: number;
@@ -156,7 +157,7 @@ export function ApplePencilScratchpad({
 
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.setPointerCapture(e.pointerId);
+    safeSetPointerCapture(canvas, e.pointerId);
     activePointerIdRef.current = e.pointerId;
 
     const point = pointFromEvent(e.nativeEvent, canvas);

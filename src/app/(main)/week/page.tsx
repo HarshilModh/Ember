@@ -3,6 +3,7 @@ import { tagsForTasks, weekTasks } from "@/db/queries";
 import { dayHeading } from "@/lib/format";
 import { getOwnerId } from "@/lib/auth";
 import type { Task } from "@/db/schema";
+import { AnnotationOverlay } from "@/components/annotation-overlay";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,8 @@ export default async function WeekPage() {
           <TaskList tasks={group} tags={tags} />
         </section>
       ))}
+
+      <AnnotationOverlay />
     </div>
   );
 }

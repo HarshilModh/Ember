@@ -16,6 +16,7 @@ import {
   Zap,
   Headphones,
   Keyboard,
+  PenTool,
 } from "lucide-react";
 import { getOwnerId } from "@/lib/auth";
 import { RelaunchTourButton } from "@/components/relaunch-tour-button";
@@ -150,6 +151,60 @@ export default async function HelpPage() {
             <kbd className="rounded-md border border-line/80 bg-surface px-2 py-1 font-mono text-[11px] font-bold text-ink">
               Enter
             </kbd>
+          </div>
+        </div>
+      </section>
+
+      {/* Apple Pencil */}
+      <section className="bg-surface rounded-3xl border border-line/80 p-6 sm:p-8 shadow-2xs space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold text-ink tracking-tight flex items-center gap-2">
+            <PenTool className="size-5 text-accent" />
+            Apple Pencil on iPad
+          </h2>
+          <span className="text-xs font-mono text-faint">Beyond typing</span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+          <div className="p-3.5 rounded-2xl bg-raised/60 border border-line/50 space-y-1">
+            <p className="font-semibold text-ink">Handwriting works everywhere, already</p>
+            <p className="text-muted leading-relaxed">
+              Every text field — task title, tags, notes, log notes — is a plain input, so iOS Scribble
+              converts your handwriting to text automatically. Nothing to turn on.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-raised/60 border border-line/50 space-y-1">
+            <p className="font-semibold text-ink">Cross a task off like paper</p>
+            <p className="text-muted leading-relaxed">
+              Draw a line through a task row to complete it (or reopen it if it's already closed). Draw
+              an X to drop it. Same two actions as the swipe gesture, drawn instead of swiped.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-raised/60 border border-line/50 space-y-1">
+            <p className="font-semibold text-ink">Hover to peek (iPad Pro, M2 and later)</p>
+            <p className="text-muted leading-relaxed">
+              Hold the Pencil just above a task that has notes, without touching down, and the full note
+              pops up — no need to open it to read past what's shown on the row.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-raised/60 border border-line/50 space-y-1">
+            <p className="font-semibold text-ink">Draw a log note instead of typing one</p>
+            <p className="text-muted leading-relaxed">
+              Open a task's note composer and tap the pen icon to switch to a small ink strip — good for
+              a quick sketch or a note that's faster drawn than typed.
+            </p>
+          </div>
+
+          <div className="p-3.5 rounded-2xl bg-raised/60 border border-line/50 space-y-1 sm:col-span-2">
+            <p className="font-semibold text-ink">Mark up Metrics and This Week</p>
+            <p className="text-muted leading-relaxed">
+              The pen button in the bottom-left corner of those pages opens a freehand overlay — circle a
+              good day, underline a streak. It's for the moment of looking, not saved anywhere, and clears
+              when you close it.
+            </p>
           </div>
         </div>
       </section>
