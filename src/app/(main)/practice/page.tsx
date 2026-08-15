@@ -1,10 +1,6 @@
 import Link from "next/link";
 import {
   AlertTriangle,
-  CheckCircle2,
-  Lightbulb,
-  BookOpen,
-  XCircle,
   ArrowRight,
   PieChart,
   History,
@@ -16,16 +12,9 @@ import {
 import { dueReviewsRanked, pinnedProblems, recentAttempts, topicBreakdown } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
 import { startOfToday } from "@/lib/timezone";
+import { OUTCOME_META } from "@/lib/outcome-meta";
 
 export const dynamic = "force-dynamic";
-
-const OUTCOME_META = {
-  solved_clean: { label: "Solved Clean", icon: CheckCircle2, accent: "text-emerald-500" },
-  solved_hints: { label: "Needed Hints", icon: Lightbulb, accent: "text-amber-500" },
-  saw_solution: { label: "Saw Solution", icon: BookOpen, accent: "text-indigo-500" },
-  failed: { label: "Failed", icon: XCircle, accent: "text-rose-500" },
-  accepted: { label: "Accepted", icon: CheckCircle2, accent: "text-emerald-500" },
-} as const;
 
 export default async function PracticePage() {
   const ownerId = await getOwnerId();
@@ -155,15 +144,18 @@ export default async function PracticePage() {
               <PieChart className="size-5 text-indigo-500" />
               Topic Focus
             </h2>
+            <Link href="/practice/topics" className="text-xs font-semibold text-accent hover:underline">
+              All patterns
+            </Link>
           </div>
 
           <div className="bg-surface rounded-2xl border border-line p-5 shadow-2xs flex flex-col justify-between flex-1 gap-5">
             {topics.length > 0 ? (
               <div className="space-y-4">
                 {topics.slice(0, 5).map((t) => (
-                  <div key={t.topic}>
+                  <Link href={`/practice/topics/${encodeURIComponent(t.topic)}`} key={t.topic} className="block group">
                     <div className="flex justify-between items-end mb-1.5 text-xs">
-                      <span className="font-semibold text-ink">{t.topic}</span>
+                      <span className="font-semibold text-ink group-hover:text-accent transition-colors">{t.topic}</span>
                       <span className="text-faint font-mono">{t.struggled}/{t.total} struggled</span>
                     </div>
                     <div className="w-full bg-raised rounded-full h-2 overflow-hidden">
@@ -172,7 +164,7 @@ export default async function PracticePage() {
                         style={{ width: `${Math.max(4, t.strugglePct)}%` }}
                       />
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             ) : (

@@ -9,7 +9,7 @@
  * endpoint (the actual fragile part of this script) fails loudly without
  * touching the database.
  */
-import { findProblemBySlug, hasAttemptAt, recordAttempt, upsertProblem } from "../src/db/queries";
+import { findOrCreateProblem, findProblemBySlug, hasAttemptAt, recordAttempt } from "../src/db/queries";
 import { sql } from "../src/db/client";
 
 const GRAPHQL_URL = "https://leetcode.com/graphql";
@@ -104,7 +104,12 @@ async function main() {
     let problem = await findProblemBySlug(ownerId, sub.titleSlug);
     if (!problem) {
       const detail = details.get(sub.titleSlug);
-      problem = await upsertProblem(ownerId, {
+      // Not upsertProblem directly — a problem logged manually before this
+      // sync ran (e.g. via log_attempt with just a number) gets a synthetic
+      // "leetcode-N" slug. Matching on number too, and upgrading that slug
+      // to the real one here, is what keeps that from becoming a second row
+      // with a split attempt history.
+      problem = await findOrCreateProblem(ownerId, {
         slug: sub.titleSlug,
         number: detail?.questionFrontendId ? Number(detail.questionFrontendId) : null,
         title: sub.title,

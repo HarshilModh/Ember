@@ -4,19 +4,21 @@ import { z } from "zod";
 import { db, friendlyDbError } from "@/db/client";
 import {
   addTopics,
+  allTopics,
   attachTags,
   deleteAttempt,
   deleteProblem,
   dueReviewsRanked,
+  findOrCreateProblem,
   findProblem,
   findProblemBySlug,
   OPEN,
   pinnedProblems,
   problemAttempts,
+  problemsByTopic,
   recordAttempt,
   setPinnedForRevisit,
   tagsForTasks,
-  upsertProblem,
 } from "@/db/queries";
 import { logs, tags, taskTags, tasks, type Outcome } from "@/db/schema";
 import { daysFromToday, endOfDay, todayParts, tomorrowParts, zonedParts } from "@/lib/timezone";
@@ -306,21 +308,15 @@ export function createEmberMcpServer(ownerId: string): McpServer {
         async () => {
           if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
 
-          let problem = slug
-            ? await findProblemBySlug(ownerId, slug)
-            : await findProblem(ownerId, String(number));
-          if (!problem) {
-            problem = await upsertProblem(ownerId, {
-              slug: slug ?? `leetcode-${number}`,
-              number: number ?? null,
-              title: title ?? slug ?? `Problem #${number}`,
-              difficulty: difficulty ?? null,
-              url: url ?? null,
-              topics: topics ?? [],
-            });
-          } else if (topics?.length) {
-            problem = (await addTopics(ownerId, problem.id, topics)) ?? problem;
-          }
+          let problem = await findOrCreateProblem(ownerId, {
+            slug,
+            number: number ?? null,
+            title: title ?? slug ?? `Problem #${number}`,
+            difficulty: difficulty ?? null,
+            url: url ?? null,
+            topics: topics ?? [],
+          });
+          if (topics?.length) problem = (await addTopics(ownerId, problem.id, topics)) ?? problem;
 
           const nextAt = await recordAttempt(ownerId, problem.id, outcome as Outcome, {
             minutes,
@@ -486,6 +482,51 @@ export function createEmberMcpServer(ownerId: string): McpServer {
                     const bits = [`#${a.id}`, a.outcome, `(${a.source}${a.isRevision ? ", revision" : ""})`, formatDue(a.attemptedAt)];
                     if (a.approach) bits.push(`approach: ${a.approach}`);
                     if (a.notes) bits.push(`notes: ${a.notes}`);
+                    return bits.join(" ");
+                  })
+                  .join("\n"),
+          ),
+      ),
+  );
+
+  server.registerTool(
+    "list_topics",
+    {
+      title: "List pattern tags",
+      description:
+        "List every pattern/topic tag in use and how many problems carry it. Use this before list_by_topic to find the exact tag spelling instead of guessing.",
+      inputSchema: {},
+    },
+    async () =>
+      guard(
+        () => allTopics(ownerId),
+        (rows) =>
+          ok(rows.length === 0 ? "No topics tagged yet." : rows.map((r) => `${r.topic} (${r.count})`).join("\n")),
+      ),
+  );
+
+  server.registerTool(
+    "list_by_topic",
+    {
+      title: "List problems by pattern",
+      description:
+        "List every logged problem tagged with a pattern (e.g. 'monotonic-stack'), with each one's last outcome and attempt count — for pattern-mapping ('three other problems with the same skeleton') or checking what's already been covered in a topic before planning new problems.",
+      inputSchema: { topic: z.string().describe("Pattern tag, e.g. 'monotonic-stack' or 'two-pointers'") },
+    },
+    async ({ topic }) =>
+      guard(
+        () => problemsByTopic(ownerId, topic),
+        (rows) =>
+          ok(
+            rows.length === 0
+              ? `No problems tagged "${topic}".`
+              : rows
+                  .map(({ problem: p, lastOutcome, attemptCount, regressed }) => {
+                    const bits = [p.number ? `#${p.number}` : p.slug, p.title];
+                    if (p.difficulty) bits.push(`(${p.difficulty})`);
+                    bits.push(lastOutcome ? `last: ${lastOutcome} (${attemptCount}x)` : "never attempted");
+                    if (p.pinnedForRevisit) bits.push("[pinned]");
+                    if (regressed) bits.push("⚠ REGRESSED on revision");
                     return bits.join(" ");
                   })
                   .join("\n"),

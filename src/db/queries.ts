@@ -286,22 +286,25 @@ const OUTCOME_RANK: Record<Outcome, number> = {
   solved_clean: 4,
 };
 
-/**
- * Due problems enriched with the last attempt's outcome and sorted weakest
- * first, so a revision day doesn't burn time on problems already solved
- * clean before hitting the ones that actually need re-teaching. Also flags
- * `regressed`: a revision attempt that came back worse than the best result
- * before it — solved clean once, failed on revision — which the coach is
- * supposed to call out rather than quietly reschedule.
- */
-export async function dueReviewsRanked(
-  ownerId: string,
-  limit = 20,
-): Promise<{ problem: Problem; lastOutcome: Outcome | null; lastAttemptedAt: Date | null; regressed: boolean }[]> {
-  const due = await dueReviews(ownerId, 200);
-  if (due.length === 0) return [];
+export interface WithHistory {
+  problem: Problem;
+  lastOutcome: Outcome | null;
+  lastAttemptedAt: Date | null;
+  attemptCount: number;
+  regressed: boolean;
+}
 
-  const ids = due.map((p) => p.id);
+/**
+ * Shared by any list of problems that wants the last attempt's outcome
+ * attached — due reviews, a pattern's problem list, etc. Flags `regressed`:
+ * a revision attempt that came back worse than the best result before it —
+ * solved clean once, failed on revision — which the coach is supposed to
+ * call out rather than quietly reschedule.
+ */
+async function withAttemptHistory(ownerId: string, probs: Problem[]): Promise<WithHistory[]> {
+  if (probs.length === 0) return [];
+
+  const ids = probs.map((p) => p.id);
   const history = await db
     .select({
       problemId: attempts.problemId,
@@ -316,7 +319,7 @@ export async function dueReviewsRanked(
   const byProblem = new Map<number, typeof history>();
   for (const a of history) byProblem.set(a.problemId, [...(byProblem.get(a.problemId) ?? []), a]);
 
-  const enriched = due.map((problem) => {
+  return probs.map((problem) => {
     const past = byProblem.get(problem.id) ?? [];
     const last = past.at(-1);
     const bestBefore = past
@@ -328,8 +331,18 @@ export async function dueReviewsRanked(
     const lastOutcome = (last?.outcome as Outcome | undefined) ?? null;
     const regressed =
       !!last?.isRevision && bestBefore !== null && lastOutcome !== null && OUTCOME_RANK[lastOutcome] < bestBefore;
-    return { problem, lastOutcome, lastAttemptedAt: last?.attemptedAt ?? null, regressed };
+    return { problem, lastOutcome, lastAttemptedAt: last?.attemptedAt ?? null, attemptCount: past.length, regressed };
   });
+}
+
+/**
+ * Due problems enriched with the last attempt's outcome and sorted weakest
+ * first, so a revision day doesn't burn time on problems already solved
+ * clean before hitting the ones that actually need re-teaching.
+ */
+export async function dueReviewsRanked(ownerId: string, limit = 20): Promise<WithHistory[]> {
+  const due = await dueReviews(ownerId, 200);
+  const enriched = await withAttemptHistory(ownerId, due);
 
   enriched.sort((a, b) => {
     if (a.regressed !== b.regressed) return a.regressed ? -1 : 1;
@@ -340,6 +353,32 @@ export async function dueReviewsRanked(
   });
 
   return enriched.slice(0, limit);
+}
+
+/** Every pattern tag in use, with how many problems carry it — for browsing without knowing the exact tag spelling. */
+export async function allTopics(ownerId: string): Promise<{ topic: string; count: number }[]> {
+  const rows = await db
+    .select({ topic: raw<string>`unnest(${problems.topics})` })
+    .from(problems)
+    .where(eq(problems.ownerId, ownerId));
+
+  const counts = new Map<string, number>();
+  for (const r of rows) counts.set(r.topic, (counts.get(r.topic) ?? 0) + 1);
+  return [...counts.entries()]
+    .map(([topic, count]) => ({ topic, count }))
+    .sort((a, b) => b.count - a.count || a.topic.localeCompare(b.topic));
+}
+
+/** Every problem tagged with a pattern, enriched with last-outcome/regression so a "what have I already tried here" view doesn't need a follow-up lookup. */
+export async function problemsByTopic(ownerId: string, topic: string, limit = 100): Promise<WithHistory[]> {
+  const t = topic.trim().toLowerCase();
+  const probs = await db
+    .select()
+    .from(problems)
+    .where(and(eq(problems.ownerId, ownerId), raw`${t} = ANY(${problems.topics})`))
+    .orderBy(desc(problems.createdAt))
+    .limit(limit);
+  return withAttemptHistory(ownerId, probs);
 }
 
 /** Merges in new tags without dropping existing ones — a problem can pick up a sharper pattern tag on a later attempt. */
@@ -577,6 +616,61 @@ export async function upsertProblem(
     })
     .returning();
   return row;
+}
+
+/**
+ * Resolves a problem by slug, falling back to number — then creates one if
+ * neither matches. This is what actually prevents the split-history bug: a
+ * manual `log_attempt` with just a number creates a placeholder slug
+ * (`leetcode-121`); if `sync:leetcode` later syncs the same problem under
+ * its real slug (`best-time-to-buy-and-sell-stock`), a plain slug-only
+ * lookup wouldn't find the placeholder and would create a second row,
+ * silently splitting that problem's attempt history and review schedule in
+ * two. Matching on number too finds the placeholder, and if the caller
+ * supplied a real (non-placeholder) slug this time, upgrades it in place
+ * instead of leaving two rows for the same problem.
+ */
+export async function findOrCreateProblem(
+  ownerId: string,
+  input: {
+    slug?: string;
+    number?: number | null;
+    title: string;
+    difficulty?: string | null;
+    url?: string | null;
+    topics?: string[];
+  },
+): Promise<Problem> {
+  let existing = input.slug ? await findProblemBySlug(ownerId, input.slug) : undefined;
+  if (!existing && input.number != null) existing = await findProblem(ownerId, String(input.number));
+
+  if (existing) {
+    const isPlaceholder = /^leetcode-\d+$/.test(existing.slug);
+    const upgradeSlug = isPlaceholder && !!input.slug && input.slug !== existing.slug;
+    const fillDifficulty = !existing.difficulty && !!input.difficulty;
+    const fillUrl = !existing.url && !!input.url;
+    if (!upgradeSlug && !fillDifficulty && !fillUrl) return existing;
+
+    const [row] = await db
+      .update(problems)
+      .set({
+        slug: upgradeSlug ? input.slug! : existing.slug,
+        difficulty: fillDifficulty ? input.difficulty : existing.difficulty,
+        url: fillUrl ? input.url : existing.url,
+      })
+      .where(and(eq(problems.id, existing.id), eq(problems.ownerId, ownerId)))
+      .returning();
+    return row;
+  }
+
+  return upsertProblem(ownerId, {
+    slug: input.slug ?? `leetcode-${input.number}`,
+    number: input.number ?? null,
+    title: input.title,
+    difficulty: input.difficulty ?? null,
+    url: input.url ?? null,
+    topics: input.topics ?? [],
+  });
 }
 
 export async function hasAttemptAt(ownerId: string, problemId: number, attemptedAt: Date): Promise<boolean> {
