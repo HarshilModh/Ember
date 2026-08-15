@@ -4,11 +4,16 @@ import { z } from "zod";
 import { db, friendlyDbError } from "@/db/client";
 import {
   attachTags,
+  deleteAttempt,
+  deleteProblem,
   dueReviews,
   findProblem,
   findProblemBySlug,
   OPEN,
+  pinnedProblems,
+  problemAttempts,
   recordAttempt,
+  setPinnedForRevisit,
   tagsForTasks,
   upsertProblem,
 } from "@/db/queries";
@@ -249,14 +254,18 @@ export function createEmberMcpServer(ownerId: string): McpServer {
         number: z.number().int().optional().describe("e.g. 42"),
         outcome: z.enum(OUTCOMES),
         minutes: z.number().int().optional(),
-        notes: z.string().optional(),
+        notes: z.string().optional().describe("Free-form notes about the attempt"),
+        approach: z
+          .string()
+          .optional()
+          .describe("The technique/pattern used to solve it, e.g. 'two pointers' or 'sliding window'"),
         title: z.string().optional().describe("Only used if this problem hasn't been logged before"),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
         url: z.string().optional(),
         topics: z.array(z.string()).optional(),
       },
     },
-    async ({ slug, number, outcome, minutes, notes, title, difficulty, url, topics }) =>
+    async ({ slug, number, outcome, minutes, notes, approach, title, difficulty, url, topics }) =>
       guard(
         async () => {
           if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
@@ -278,6 +287,7 @@ export function createEmberMcpServer(ownerId: string): McpServer {
           const nextAt = await recordAttempt(ownerId, problem.id, outcome as Outcome, {
             minutes,
             notes,
+            approach,
             source: "manual",
           });
           return { problem, nextAt };
@@ -312,6 +322,126 @@ export function createEmberMcpServer(ownerId: string): McpServer {
                     const bits = [p.number ? `#${p.number}` : p.slug, p.title];
                     if (p.difficulty) bits.push(`(${p.difficulty})`);
                     if (p.nextReviewAt) bits.push(`due ${formatDate(p.nextReviewAt)}`);
+                    return bits.join(" ");
+                  })
+                  .join("\n"),
+          ),
+      ),
+  );
+
+  /** Shared by every tool below that identifies a problem by slug or number. */
+  async function resolveProblem(slug?: string, number?: number) {
+    if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
+    const problem = slug ? await findProblemBySlug(ownerId, slug) : await findProblem(ownerId, String(number));
+    if (!problem) throw new Error(`No problem found for ${slug ?? `#${number}`}.`);
+    return problem;
+  }
+
+  server.registerTool(
+    "set_revisit",
+    {
+      title: "Flag/unflag a problem to revisit",
+      description:
+        "Manually mark a LeetCode problem to revisit (or clear that flag), independent of the spaced-repetition schedule. Shows up in its own 'pinned for revisit' list.",
+      inputSchema: {
+        slug: z.string().optional(),
+        number: z.number().int().optional(),
+        revisit: z.boolean().describe("true to pin it for revisit, false to unpin"),
+      },
+    },
+    async ({ slug, number, revisit }) =>
+      guard(
+        async () => {
+          const problem = await resolveProblem(slug, number);
+          const row = await setPinnedForRevisit(ownerId, problem.id, revisit);
+          return row!;
+        },
+        (row) => ok(revisit ? `Pinned "${row.title}" for revisit.` : `Unpinned "${row.title}".`),
+      ),
+  );
+
+  server.registerTool(
+    "list_pinned_problems",
+    {
+      title: "List problems pinned for revisit",
+      description: "List LeetCode problems manually flagged to revisit (set via set_revisit).",
+      inputSchema: { limit: z.number().int().min(1).max(100).optional() },
+    },
+    async ({ limit }) =>
+      guard(
+        () => pinnedProblems(ownerId, limit ?? 20),
+        (rows) =>
+          ok(
+            rows.length === 0
+              ? "Nothing pinned for revisit."
+              : rows.map((p) => [p.number ? `#${p.number}` : p.slug, p.title].join(" ")).join("\n"),
+          ),
+      ),
+  );
+
+  server.registerTool(
+    "delete_problem",
+    {
+      title: "Delete a LeetCode problem",
+      description:
+        "Permanently delete a LeetCode problem and every attempt logged against it (e.g. to clean up test data or something logged by mistake). This cannot be undone.",
+      inputSchema: {
+        slug: z.string().optional(),
+        number: z.number().int().optional(),
+      },
+    },
+    async ({ slug, number }) =>
+      guard(
+        async () => {
+          const problem = await resolveProblem(slug, number);
+          const row = await deleteProblem(ownerId, problem.id);
+          return row!;
+        },
+        (row) => ok(`Deleted "${row.title}" and all of its logged attempts.`),
+      ),
+  );
+
+  server.registerTool(
+    "delete_attempt",
+    {
+      title: "Delete a single logged attempt",
+      description:
+        "Permanently delete one logged attempt by id (e.g. to remove a duplicate or mistaken log_attempt call), without touching the problem or its other attempts. Use list_reviews/problemAttempts context or the attempt id shown in the app to find the id. This cannot be undone.",
+      inputSchema: { id: z.number().int().describe("Attempt id") },
+    },
+    async ({ id }) =>
+      guard(
+        () => deleteAttempt(ownerId, id),
+        (row) => (row ? ok(`Deleted attempt #${row.id} (${row.outcome}).`) : fail(`No attempt with id ${id}.`)),
+      ),
+  );
+
+  server.registerTool(
+    "list_attempts",
+    {
+      title: "List attempts for a problem",
+      description: "List logged attempts for one LeetCode problem, most recent first — useful for finding an attempt id to delete.",
+      inputSchema: {
+        slug: z.string().optional(),
+        number: z.number().int().optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+      },
+    },
+    async ({ slug, number, limit }) =>
+      guard(
+        async () => {
+          const problem = await resolveProblem(slug, number);
+          return problemAttempts(ownerId, problem.id, limit ?? 10);
+        },
+        (rows) =>
+          ok(
+            rows.length === 0
+              ? "No attempts logged for this problem."
+              : rows
+                  .map((a) => {
+                    const bits = [`#${a.id}`, a.outcome, `(${a.source})`, formatDue(a.attemptedAt)];
+                    if (a.approach) bits.push(`approach: ${a.approach}`);
+                    if (a.notes) bits.push(`notes: ${a.notes}`);
                     return bits.join(" ");
                   })
                   .join("\n"),

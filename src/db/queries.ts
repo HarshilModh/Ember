@@ -10,6 +10,7 @@ import {
   tags,
   taskTags,
   tasks,
+  type Attempt,
   type FocusSessionRow,
   type Log,
   type McpToken,
@@ -273,6 +274,49 @@ export async function dueReviews(ownerId: string, limit = 20): Promise<Problem[]
     .limit(limit);
 }
 
+/** Problems manually flagged to revisit, independent of the SM-2 schedule. */
+export async function pinnedProblems(ownerId: string, limit = 20): Promise<Problem[]> {
+  return db
+    .select()
+    .from(problems)
+    .where(and(eq(problems.ownerId, ownerId), eq(problems.pinnedForRevisit, true)))
+    .orderBy(desc(problems.createdAt))
+    .limit(limit);
+}
+
+export async function setPinnedForRevisit(ownerId: string, problemId: number, pinned: boolean): Promise<Problem | undefined> {
+  const [row] = await db
+    .update(problems)
+    .set({ pinnedForRevisit: pinned })
+    .where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)))
+    .returning();
+  return row;
+}
+
+/** Deletes a problem and every attempt logged against it. */
+export async function deleteProblem(ownerId: string, problemId: number): Promise<Problem | undefined> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(problems)
+      .where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)))
+      .limit(1);
+    if (!row) return undefined;
+    await tx.delete(attempts).where(and(eq(attempts.problemId, problemId), eq(attempts.ownerId, ownerId)));
+    await tx.delete(problems).where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)));
+    return row;
+  });
+}
+
+/** Deletes a single logged attempt (e.g. to clean up a duplicate/mistaken log). */
+export async function deleteAttempt(ownerId: string, attemptId: number): Promise<Attempt | undefined> {
+  const [row] = await db
+    .delete(attempts)
+    .where(and(eq(attempts.id, attemptId), eq(attempts.ownerId, ownerId)))
+    .returning();
+  return row;
+}
+
 export async function recentAttempts(ownerId: string, limit = 10) {
   return db
     .select({
@@ -280,6 +324,7 @@ export async function recentAttempts(ownerId: string, limit = 10) {
       outcome: attempts.outcome,
       minutes: attempts.minutes,
       notes: attempts.notes,
+      approach: attempts.approach,
       source: attempts.source,
       attemptedAt: attempts.attemptedAt,
       problemId: attempts.problemId,
@@ -302,6 +347,7 @@ export async function attemptsInLast(ownerId: string, days = 7) {
       outcome: attempts.outcome,
       minutes: attempts.minutes,
       notes: attempts.notes,
+      approach: attempts.approach,
       source: attempts.source,
       attemptedAt: attempts.attemptedAt,
       problemId: attempts.problemId,
@@ -463,7 +509,7 @@ export async function recordAttempt(
   ownerId: string,
   problemId: number,
   outcome: Outcome,
-  opts?: { minutes?: number; notes?: string; source?: "manual" | "sync"; attemptedAt?: Date },
+  opts?: { minutes?: number; notes?: string; approach?: string; source?: "manual" | "sync"; attemptedAt?: Date },
 ): Promise<Date> {
   const [problem] = await db
     .select()
@@ -478,6 +524,7 @@ export async function recordAttempt(
     outcome,
     minutes: opts?.minutes ?? null,
     notes: opts?.notes ?? null,
+    approach: opts?.approach ?? null,
     source: opts?.source ?? "manual",
     attemptedAt: opts?.attemptedAt ?? new Date(),
   });

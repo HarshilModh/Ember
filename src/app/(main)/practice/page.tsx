@@ -10,8 +10,9 @@ import {
   History,
   AlertCircle,
   Play,
+  Bookmark,
 } from "lucide-react";
-import { dueReviews, recentAttempts, topicBreakdown } from "@/db/queries";
+import { dueReviews, pinnedProblems, recentAttempts, topicBreakdown } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
 import { startOfToday } from "@/lib/timezone";
 
@@ -22,13 +23,14 @@ const OUTCOME_META = {
   solved_hints: { label: "Needed Hints", icon: Lightbulb, accent: "text-amber-500" },
   saw_solution: { label: "Saw Solution", icon: BookOpen, accent: "text-indigo-500" },
   failed: { label: "Failed", icon: XCircle, accent: "text-rose-500" },
-  accepted: { label: "Synced Accepted", icon: CheckCircle2, accent: "text-emerald-500" },
+  accepted: { label: "Accepted", icon: CheckCircle2, accent: "text-emerald-500" },
 } as const;
 
 export default async function PracticePage() {
   const ownerId = await getOwnerId();
-  const [reviews, attempts, topics] = await Promise.all([
+  const [reviews, pinned, attempts, topics] = await Promise.all([
     dueReviews(ownerId, 10),
+    pinnedProblems(ownerId, 10),
     recentAttempts(ownerId, 8),
     topicBreakdown(ownerId),
   ]);
@@ -162,6 +164,48 @@ export default async function PracticePage() {
           </div>
         </section>
 
+        {/* Pinned for Revisit (Full Width) */}
+        {pinned.length > 0 ? (
+          <section className="lg:col-span-3 flex flex-col gap-4">
+            <div className="flex items-center justify-between px-1">
+              <h2 className="text-lg font-bold text-ink flex items-center gap-2">
+                <Bookmark className="size-5 text-amber-500" />
+                Pinned for Revisit
+              </h2>
+            </div>
+            <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-2xs divide-y divide-line/60">
+              {pinned.map((prob) => (
+                <Link
+                  href={`/practice/${prob.id}`}
+                  key={prob.id}
+                  className="p-4 hover:bg-raised/40 transition-colors flex items-center gap-4 group"
+                >
+                  <span className="font-mono text-xs text-faint w-10">
+                    {prob.number ? `#${prob.number}` : ""}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-semibold text-ink group-hover:text-accent transition-colors truncate">
+                      {prob.title}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      {prob.difficulty ? (
+                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full lc-${prob.difficulty} bg-current/10`}>
+                          {prob.difficulty}
+                        </span>
+                      ) : null}
+                      {prob.topics.slice(0, 2).map((t) => (
+                        <span key={t} className="text-[10px] font-medium px-2 py-0.5 rounded bg-raised text-muted border border-line/40">
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         {/* Recent Attempts (Full Width Grid) */}
         <section className="lg:col-span-3 flex flex-col gap-4 mt-2">
           <div className="flex items-center justify-between px-1">
@@ -198,6 +242,9 @@ export default async function PracticePage() {
                       {attempt.number ? `#${attempt.number} ` : ""}
                       {attempt.title}
                     </h3>
+                    {attempt.approach ? (
+                      <p className="text-xs text-accent mt-1 leading-snug line-clamp-1">{attempt.approach}</p>
+                    ) : null}
                     {attempt.notes ? (
                       <p className="text-xs text-muted mt-1 leading-snug line-clamp-2">{attempt.notes}</p>
                     ) : null}
@@ -205,6 +252,7 @@ export default async function PracticePage() {
                     <div className="mt-4 pt-3 border-t border-line/60 flex justify-between items-center text-[10px]">
                       <span className="text-faint">
                         {new Date(attempt.attemptedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
+                        {attempt.source === "sync" ? " · synced" : ""}
                       </span>
                       {attempt.difficulty ? (
                         <span className={`uppercase tracking-wider font-bold px-2 py-0.5 rounded-full lc-${attempt.difficulty} bg-current/10`}>

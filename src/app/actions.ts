@@ -4,7 +4,17 @@ import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db } from "@/db/client";
-import { attachTags, createMcpToken, exportAllTasks, recordAttempt, revokeMcpToken, searchTasks } from "@/db/queries";
+import {
+  attachTags,
+  createMcpToken,
+  deleteAttempt,
+  deleteProblem,
+  exportAllTasks,
+  recordAttempt,
+  revokeMcpToken,
+  searchTasks,
+  setPinnedForRevisit,
+} from "@/db/queries";
 import { logs, tasks, type Outcome, type Task } from "@/db/schema";
 import { getOwnerId } from "@/lib/auth";
 import { endOfDay } from "@/lib/timezone";
@@ -123,7 +133,7 @@ export async function completeAndLeaveFocus(id: number) {
 export async function logPracticeAttempt(
   problemId: number,
   outcome: Outcome,
-  opts?: { minutes?: number; notes?: string },
+  opts?: { minutes?: number; notes?: string; approach?: string },
 ) {
   const ownerId = await getOwnerId();
   // recordAttempt itself matches (problemId, ownerId), so a mismatched
@@ -132,6 +142,28 @@ export async function logPracticeAttempt(
   revalidatePath("/practice");
   refresh();
   redirect("/practice");
+}
+
+export async function setProblemRevisit(problemId: number, revisit: boolean) {
+  const ownerId = await getOwnerId();
+  await setPinnedForRevisit(ownerId, problemId, revisit);
+  revalidatePath("/practice");
+  refresh();
+}
+
+export async function deleteProblemAction(problemId: number) {
+  const ownerId = await getOwnerId();
+  await deleteProblem(ownerId, problemId);
+  revalidatePath("/practice");
+  refresh();
+  redirect("/practice");
+}
+
+export async function deleteAttemptAction(attemptId: number) {
+  const ownerId = await getOwnerId();
+  await deleteAttempt(ownerId, attemptId);
+  revalidatePath("/practice");
+  refresh();
 }
 
 /** Command palette task search — title only, nothing sensitive to leak. */

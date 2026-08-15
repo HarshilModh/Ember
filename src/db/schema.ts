@@ -97,11 +97,15 @@ export const problems = pgTable(
     nextReviewAt: timestamp("next_review_at", { withTimezone: true }),
     intervalDays: integer("interval_days").notNull().default(0),
     ease: real("ease").notNull().default(2.5),
+    // Manual "come back to this" flag, independent of the SM-2 schedule above —
+    // set by the user/Claude, not by the review algorithm.
+    pinnedForRevisit: boolean("pinned_for_revisit").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("problems_owner_slug_unique").on(t.ownerId, t.slug),
     index("problems_owner_next_review_idx").on(t.ownerId, t.nextReviewAt),
+    index("problems_owner_pinned_idx").on(t.ownerId, t.pinnedForRevisit),
   ],
 );
 
@@ -120,6 +124,9 @@ export const attempts = pgTable(
     notes: text("notes"),
     // manual | sync
     source: text("source").notNull().default("manual"),
+    // Technique/pattern used to solve it (e.g. "two pointers"), separate from
+    // free-form `notes` so the UI can show it distinctly.
+    approach: text("approach"),
     attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("attempts_owner_problem_attempted_idx").on(t.ownerId, t.problemId, t.attemptedAt)],
