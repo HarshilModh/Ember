@@ -18,7 +18,7 @@ import {
   upsertProblem,
 } from "@/db/queries";
 import { logs, tags, taskTags, tasks, type Outcome } from "@/db/schema";
-import { endOfDay, todayParts, tomorrowParts, zonedParts } from "@/lib/timezone";
+import { daysFromToday, endOfDay, todayParts, tomorrowParts, zonedParts } from "@/lib/timezone";
 
 const OUTCOMES = ["solved_clean", "solved_hints", "saw_solution", "failed", "accepted"] as const;
 const PRIORITY_NAMES = ["none", "low", "medium", "high"] as const;
@@ -70,6 +70,26 @@ function formatDate(d: Date): string {
   const { year, month, day } = zonedParts(d);
   const p = (n: number) => String(n).padStart(2, "0");
   return `${year}-${p(month)}-${p(day)}`;
+}
+
+/**
+ * For backdating a log_attempt call — unlike parseDue, "undefined" here means
+ * "now" (recordAttempt's own default), not "no date filter." Only used when
+ * the caller explicitly wants to record something that happened earlier,
+ * e.g. relogging yesterday's solves.
+ */
+function parseAttemptDate(input?: string): Date | undefined {
+  if (!input) return undefined;
+  const s = input.trim().toLowerCase();
+  if (s === "today") return new Date();
+  if (s === "yesterday") return daysFromToday(-1);
+
+  const bareDate = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (bareDate) return endOfDay(Number(bareDate[1]), Number(bareDate[2]), Number(bareDate[3]));
+
+  const d = new Date(input);
+  if (Number.isNaN(d.getTime())) throw new Error(`Could not read "${input}" as a date.`);
+  return d;
 }
 
 function render(t: typeof tasks.$inferSelect, tagNames: string[] = []): string {
@@ -259,13 +279,19 @@ export function createEmberMcpServer(ownerId: string): McpServer {
           .string()
           .optional()
           .describe("The technique/pattern used to solve it, e.g. 'two pointers' or 'sliding window'"),
+        date: z
+          .string()
+          .optional()
+          .describe(
+            "When this was actually attempted, for backdating a log entered late — 'today' (default if omitted), 'yesterday', or an ISO date/datetime",
+          ),
         title: z.string().optional().describe("Only used if this problem hasn't been logged before"),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
         url: z.string().optional(),
         topics: z.array(z.string()).optional(),
       },
     },
-    async ({ slug, number, outcome, minutes, notes, approach, title, difficulty, url, topics }) =>
+    async ({ slug, number, outcome, minutes, notes, approach, date, title, difficulty, url, topics }) =>
       guard(
         async () => {
           if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
@@ -289,6 +315,7 @@ export function createEmberMcpServer(ownerId: string): McpServer {
             notes,
             approach,
             source: "manual",
+            attemptedAt: parseAttemptDate(date),
           });
           return { problem, nextAt };
         },
