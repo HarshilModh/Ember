@@ -127,6 +127,10 @@ export const attempts = pgTable(
     // Technique/pattern used to solve it (e.g. "two pointers"), separate from
     // free-form `notes` so the UI can show it distinctly.
     approach: text("approach"),
+    // True Anki-style revision (blank-file resolve), not a same-day retry —
+    // lets a "solved clean, then failed on revision" regression be detected
+    // instead of just quietly rescheduling.
+    isRevision: boolean("is_revision").notNull().default(false),
     attemptedAt: timestamp("attempted_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("attempts_owner_problem_attempted_idx").on(t.ownerId, t.problemId, t.attemptedAt)],

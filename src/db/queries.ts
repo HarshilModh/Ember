@@ -274,6 +274,92 @@ export async function dueReviews(ownerId: string, limit = 20): Promise<Problem[]
     .limit(limit);
 }
 
+/**
+ * Ranks weakest-first: failed, saw_solution, solved_hints, accepted, solved_clean.
+ * Matches the DSA coach's explicit revision-day ordering rule.
+ */
+const OUTCOME_RANK: Record<Outcome, number> = {
+  failed: 0,
+  saw_solution: 1,
+  solved_hints: 2,
+  accepted: 3,
+  solved_clean: 4,
+};
+
+/**
+ * Due problems enriched with the last attempt's outcome and sorted weakest
+ * first, so a revision day doesn't burn time on problems already solved
+ * clean before hitting the ones that actually need re-teaching. Also flags
+ * `regressed`: a revision attempt that came back worse than the best result
+ * before it — solved clean once, failed on revision — which the coach is
+ * supposed to call out rather than quietly reschedule.
+ */
+export async function dueReviewsRanked(
+  ownerId: string,
+  limit = 20,
+): Promise<{ problem: Problem; lastOutcome: Outcome | null; lastAttemptedAt: Date | null; regressed: boolean }[]> {
+  const due = await dueReviews(ownerId, 200);
+  if (due.length === 0) return [];
+
+  const ids = due.map((p) => p.id);
+  const history = await db
+    .select({
+      problemId: attempts.problemId,
+      outcome: attempts.outcome,
+      isRevision: attempts.isRevision,
+      attemptedAt: attempts.attemptedAt,
+    })
+    .from(attempts)
+    .where(and(eq(attempts.ownerId, ownerId), inArray(attempts.problemId, ids)))
+    .orderBy(asc(attempts.attemptedAt));
+
+  const byProblem = new Map<number, typeof history>();
+  for (const a of history) byProblem.set(a.problemId, [...(byProblem.get(a.problemId) ?? []), a]);
+
+  const enriched = due.map((problem) => {
+    const past = byProblem.get(problem.id) ?? [];
+    const last = past.at(-1);
+    const bestBefore = past
+      .slice(0, -1)
+      .reduce<number | null>((best, a) => {
+        const rank = OUTCOME_RANK[a.outcome as Outcome];
+        return best === null ? rank : Math.max(best, rank);
+      }, null);
+    const lastOutcome = (last?.outcome as Outcome | undefined) ?? null;
+    const regressed =
+      !!last?.isRevision && bestBefore !== null && lastOutcome !== null && OUTCOME_RANK[lastOutcome] < bestBefore;
+    return { problem, lastOutcome, lastAttemptedAt: last?.attemptedAt ?? null, regressed };
+  });
+
+  enriched.sort((a, b) => {
+    if (a.regressed !== b.regressed) return a.regressed ? -1 : 1;
+    const rankA = a.lastOutcome ? OUTCOME_RANK[a.lastOutcome] : -1;
+    const rankB = b.lastOutcome ? OUTCOME_RANK[b.lastOutcome] : -1;
+    if (rankA !== rankB) return rankA - rankB;
+    return (a.problem.nextReviewAt?.getTime() ?? 0) - (b.problem.nextReviewAt?.getTime() ?? 0);
+  });
+
+  return enriched.slice(0, limit);
+}
+
+/** Merges in new tags without dropping existing ones — a problem can pick up a sharper pattern tag on a later attempt. */
+export async function addTopics(ownerId: string, problemId: number, newTopics: string[]): Promise<Problem | undefined> {
+  const [problem] = await db
+    .select()
+    .from(problems)
+    .where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)))
+    .limit(1);
+  if (!problem) return undefined;
+
+  const merged = Array.from(new Set([...problem.topics, ...newTopics.map((t) => t.trim().toLowerCase()).filter(Boolean)]));
+  const [row] = await db
+    .update(problems)
+    .set({ topics: merged })
+    .where(and(eq(problems.id, problemId), eq(problems.ownerId, ownerId)))
+    .returning();
+  return row;
+}
+
 /** Problems manually flagged to revisit, independent of the SM-2 schedule. */
 export async function pinnedProblems(ownerId: string, limit = 20): Promise<Problem[]> {
   return db
@@ -509,7 +595,14 @@ export async function recordAttempt(
   ownerId: string,
   problemId: number,
   outcome: Outcome,
-  opts?: { minutes?: number; notes?: string; approach?: string; source?: "manual" | "sync"; attemptedAt?: Date },
+  opts?: {
+    minutes?: number;
+    notes?: string;
+    approach?: string;
+    isRevision?: boolean;
+    source?: "manual" | "sync";
+    attemptedAt?: Date;
+  },
 ): Promise<Date> {
   const [problem] = await db
     .select()
@@ -525,6 +618,7 @@ export async function recordAttempt(
     minutes: opts?.minutes ?? null,
     notes: opts?.notes ?? null,
     approach: opts?.approach ?? null,
+    isRevision: opts?.isRevision ?? false,
     source: opts?.source ?? "manual",
     attemptedAt: opts?.attemptedAt ?? new Date(),
   });

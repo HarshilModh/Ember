@@ -3,10 +3,11 @@ import { and, asc, desc, eq, inArray, lt } from "drizzle-orm";
 import { z } from "zod";
 import { db, friendlyDbError } from "@/db/client";
 import {
+  addTopics,
   attachTags,
   deleteAttempt,
   deleteProblem,
-  dueReviews,
+  dueReviewsRanked,
   findProblem,
   findProblemBySlug,
   OPEN,
@@ -285,13 +286,22 @@ export function createEmberMcpServer(ownerId: string): McpServer {
           .describe(
             "When this was actually attempted, for backdating a log entered late — 'today' (default if omitted), 'yesterday', or an ISO date/datetime",
           ),
+        is_revision: z
+          .boolean()
+          .optional()
+          .describe("True if this is a blank-file re-solve of a problem already seen, not a first pass"),
         title: z.string().optional().describe("Only used if this problem hasn't been logged before"),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
         url: z.string().optional(),
-        topics: z.array(z.string()).optional(),
+        topics: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Pattern tags, e.g. 'monotonic-stack' not just 'stack'. Merged into the problem's existing tags — nothing is dropped, even on a problem logged before.",
+          ),
       },
     },
-    async ({ slug, number, outcome, minutes, notes, approach, date, title, difficulty, url, topics }) =>
+    async ({ slug, number, outcome, minutes, notes, approach, date, is_revision, title, difficulty, url, topics }) =>
       guard(
         async () => {
           if (!slug && number === undefined) throw new Error("Provide a slug or a problem number.");
@@ -308,12 +318,15 @@ export function createEmberMcpServer(ownerId: string): McpServer {
               url: url ?? null,
               topics: topics ?? [],
             });
+          } else if (topics?.length) {
+            problem = (await addTopics(ownerId, problem.id, topics)) ?? problem;
           }
 
           const nextAt = await recordAttempt(ownerId, problem.id, outcome as Outcome, {
             minutes,
             notes,
             approach,
+            isRevision: is_revision,
             source: "manual",
             attemptedAt: parseAttemptDate(date),
           });
@@ -328,7 +341,8 @@ export function createEmberMcpServer(ownerId: string): McpServer {
     "list_reviews",
     {
       title: "List due reviews",
-      description: "List LeetCode problems due for review, most overdue first.",
+      description:
+        "List LeetCode problems due for review, weakest result first (failed, saw_solution, solved_hints, then solved_clean) so a revision session tackles the ones that need re-teaching before the easy re-confirms. Flags a problem that was solved before but failed on a later revision attempt.",
       inputSchema: {
         limit: z.number().int().min(1).max(100).optional(),
         difficulty: z.enum(["easy", "medium", "hard"]).optional(),
@@ -337,18 +351,21 @@ export function createEmberMcpServer(ownerId: string): McpServer {
     async ({ limit, difficulty }) =>
       guard(
         async () => {
-          const rows = await dueReviews(ownerId, limit ?? 20);
-          return difficulty ? rows.filter((p) => p.difficulty === difficulty) : rows;
+          const rows = await dueReviewsRanked(ownerId, limit ?? 20);
+          return difficulty ? rows.filter((r) => r.problem.difficulty === difficulty) : rows;
         },
         (rows) =>
           ok(
             rows.length === 0
               ? "Nothing due for review."
               : rows
-                  .map((p) => {
+                  .map(({ problem: p, lastOutcome, regressed }) => {
                     const bits = [p.number ? `#${p.number}` : p.slug, p.title];
                     if (p.difficulty) bits.push(`(${p.difficulty})`);
+                    if (lastOutcome) bits.push(`last: ${lastOutcome}`);
                     if (p.nextReviewAt) bits.push(`due ${formatDate(p.nextReviewAt)}`);
+                    if (p.pinnedForRevisit) bits.push("[pinned]");
+                    if (regressed) bits.push("⚠ REGRESSED on revision — solved before, weaker now");
                     return bits.join(" ");
                   })
                   .join("\n"),
@@ -466,7 +483,7 @@ export function createEmberMcpServer(ownerId: string): McpServer {
               ? "No attempts logged for this problem."
               : rows
                   .map((a) => {
-                    const bits = [`#${a.id}`, a.outcome, `(${a.source})`, formatDue(a.attemptedAt)];
+                    const bits = [`#${a.id}`, a.outcome, `(${a.source}${a.isRevision ? ", revision" : ""})`, formatDue(a.attemptedAt)];
                     if (a.approach) bits.push(`approach: ${a.approach}`);
                     if (a.notes) bits.push(`notes: ${a.notes}`);
                     return bits.join(" ");

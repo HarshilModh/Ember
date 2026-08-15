@@ -1,0 +1,1 @@
+ALTER TABLE "attempts" ADD COLUMN "is_revision" boolean DEFAULT false NOT NULL;
