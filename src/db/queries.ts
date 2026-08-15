@@ -131,6 +131,30 @@ export async function getTask(ownerId: string, id: number): Promise<Task | undef
   return row;
 }
 
+/**
+ * Hard delete — unlike dropping a task (status -> "dropped"), this actually
+ * removes the row. `logs` are append-only by design (see schema.ts), so a
+ * log entry pointing at this task is detached (taskId -> null) rather than
+ * deleted; `task_tags` rows and a `focus_sessions.active_task_id` reference
+ * are cleaned up since neither carries that append-only guarantee.
+ */
+export async function deleteTask(ownerId: string, id: number): Promise<Task | undefined> {
+  return db.transaction(async (tx) => {
+    const [row] = await tx.select().from(tasks).where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId))).limit(1);
+    if (!row) return undefined;
+
+    await tx.delete(taskTags).where(eq(taskTags.taskId, id));
+    await tx.update(logs).set({ taskId: null }).where(and(eq(logs.taskId, id), eq(logs.ownerId, ownerId)));
+    await tx
+      .update(focusSessions)
+      .set({ activeTaskId: null })
+      .where(and(eq(focusSessions.activeTaskId, id), eq(focusSessions.ownerId, ownerId)));
+    await tx.delete(tasks).where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)));
+
+    return row;
+  });
+}
+
 export async function taskLogs(ownerId: string, taskId: number) {
   return db
     .select()

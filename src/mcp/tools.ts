@@ -8,6 +8,7 @@ import {
   attachTags,
   deleteAttempt,
   deleteProblem,
+  deleteTask,
   dueReviewsRanked,
   findOrCreateProblem,
   findProblem,
@@ -228,6 +229,21 @@ export function createEmberMcpServer(ownerId: string): McpServer {
           return row;
         },
         (row) => (row ? ok(`Completed ${render(row)}`) : fail(`No task with id ${id}.`)),
+      ),
+  );
+
+  server.registerTool(
+    "delete_task",
+    {
+      title: "Delete a task",
+      description:
+        "Permanently delete a task by id — e.g. to clean up a duplicate or something added by mistake. This cannot be undone. For a task you just don't want to do anymore, prefer marking it dropped in the app instead; this is for removing rows outright.",
+      inputSchema: { id: z.number().int().describe("Task id") },
+    },
+    async ({ id }) =>
+      guard(
+        () => deleteTask(ownerId, id),
+        (row) => (row ? ok(`Deleted ${render(row)}`) : fail(`No task with id ${id}.`)),
       ),
   );
 
