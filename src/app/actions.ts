@@ -133,7 +133,7 @@ export async function completeAndLeaveFocus(id: number) {
 export async function logPracticeAttempt(
   problemId: number,
   outcome: Outcome,
-  opts?: { minutes?: number; notes?: string; approach?: string },
+  opts?: { minutes?: number; notes?: string; approach?: string; isRevision?: boolean },
 ) {
   const ownerId = await getOwnerId();
   // recordAttempt itself matches (problemId, ownerId), so a mismatched

@@ -29,6 +29,7 @@ export function PracticeFocusView({ problem, attempts }: { problem: Problem; att
   const [notes, setNotes] = useState("");
   const [approach, setApproach] = useState("");
   const [minutes, setMinutes] = useState("");
+  const [isRevision, setIsRevision] = useState(false);
   const [pending, startTransition] = useTransition();
   const [pinned, setPinned] = useState(problem.pinnedForRevisit);
   const [pinPending, startPinTransition] = useTransition();
@@ -50,6 +51,7 @@ export function PracticeFocusView({ problem, attempts }: { problem: Problem; att
         minutes: minutes ? Number(minutes) : undefined,
         notes: notes.trim() || undefined,
         approach: approach.trim() || undefined,
+        isRevision: isRevision || undefined,
       }),
     );
   }
@@ -140,6 +142,7 @@ export function PracticeFocusView({ problem, attempts }: { problem: Problem; att
                 <span className="block mt-1 text-[12px] text-faint">
                   {new Date(last.attemptedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                   {last.source === "sync" ? " · synced" : ""}
+                  {last.isRevision ? " · revision" : ""}
                 </span>
               </>
             ) : (
@@ -174,6 +177,15 @@ export function PracticeFocusView({ problem, attempts }: { problem: Problem; att
               className="w-full rounded-xl border border-line/80 bg-raised px-4 py-3 text-[14px] outline-none placeholder:text-faint focus:border-accent focus:ring-2 focus:ring-accent/15"
             />
           </div>
+          <label className="mt-2 flex items-center gap-2 text-[13px] text-muted cursor-pointer select-none w-fit">
+            <input
+              type="checkbox"
+              checked={isRevision}
+              onChange={(e) => setIsRevision(e.target.checked)}
+              className="size-3.5 accent-accent"
+            />
+            This is a revision (blank-file re-solve), not a first attempt
+          </label>
 
           <div className="mt-4 grid grid-cols-2 gap-2">
             {OUTCOME_BUTTONS.map(({ value, label, icon: Icon, cls }) => (
@@ -205,6 +217,7 @@ export function PracticeFocusView({ problem, attempts }: { problem: Problem; att
                       <span className="text-faint ml-2">
                         {new Date(a.attemptedAt).toLocaleDateString(undefined, { day: "numeric", month: "short" })}
                         {a.source === "sync" ? " · synced" : ""}
+                        {a.isRevision ? " · revision" : ""}
                       </span>
                       {a.approach ? <span className="block text-accent truncate">Approach: {a.approach}</span> : null}
                       {a.notes ? <span className="block text-muted truncate">{a.notes}</span> : null}

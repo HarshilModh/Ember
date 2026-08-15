@@ -11,8 +11,9 @@ import {
   AlertCircle,
   Play,
   Bookmark,
+  TriangleAlert,
 } from "lucide-react";
-import { dueReviews, pinnedProblems, recentAttempts, topicBreakdown } from "@/db/queries";
+import { dueReviewsRanked, pinnedProblems, recentAttempts, topicBreakdown } from "@/db/queries";
 import { getOwnerId } from "@/lib/auth";
 import { startOfToday } from "@/lib/timezone";
 
@@ -29,7 +30,7 @@ const OUTCOME_META = {
 export default async function PracticePage() {
   const ownerId = await getOwnerId();
   const [reviews, pinned, attempts, topics] = await Promise.all([
-    dueReviews(ownerId, 10),
+    dueReviewsRanked(ownerId, 10),
     pinnedProblems(ownerId, 10),
     recentAttempts(ownerId, 8),
     topicBreakdown(ownerId),
@@ -51,7 +52,7 @@ export default async function PracticePage() {
         </div>
         {reviews.length > 0 ? (
           <Link
-            href={`/practice/${reviews[0].id}`}
+            href={`/practice/${reviews[0].problem.id}`}
             className="bg-accent text-white px-4 py-2.5 rounded-xl font-semibold text-xs flex items-center gap-2 hover:opacity-90 transition-all shadow-xs"
           >
             <Play className="size-3.5 fill-white" />
@@ -73,15 +74,16 @@ export default async function PracticePage() {
 
           {reviews.length > 0 ? (
             <div className="bg-surface rounded-2xl border border-line overflow-hidden shadow-2xs divide-y divide-line/60">
-              {reviews.map((prob) => {
+              {reviews.map(({ problem: prob, lastOutcome, regressed }) => {
                 const overdue = prob.nextReviewAt ? prob.nextReviewAt < overdueCutoff : false;
+                const lastMeta = lastOutcome ? OUTCOME_META[lastOutcome] : null;
                 return (
                   <Link
                     href={`/practice/${prob.id}`}
                     key={prob.id}
                     className="p-4 hover:bg-raised/40 transition-colors flex items-center justify-between group relative overflow-hidden"
                   >
-                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${overdue ? "bg-rose-500" : "bg-amber-500"}`} />
+                    <div className={`absolute left-0 top-0 bottom-0 w-1 ${regressed ? "bg-rose-600" : overdue ? "bg-rose-500" : "bg-amber-500"}`} />
                     <div className="flex items-center gap-4 pl-3">
                       <span className="font-mono text-xs text-faint w-10">
                         {prob.number ? `#${prob.number}` : ""}
@@ -90,10 +92,21 @@ export default async function PracticePage() {
                         <h3 className="text-sm font-semibold text-ink group-hover:text-accent transition-colors">
                           {prob.title}
                         </h3>
-                        <div className="flex items-center gap-2 mt-1">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
                           {prob.difficulty ? (
                             <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full lc-${prob.difficulty} bg-current/10`}>
                               {prob.difficulty}
+                            </span>
+                          ) : null}
+                          {lastMeta ? (
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded bg-raised border border-line/40 ${lastMeta.accent}`}>
+                              last: {lastMeta.label}
+                            </span>
+                          ) : null}
+                          {prob.pinnedForRevisit ? (
+                            <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/30 flex items-center gap-1">
+                              <Bookmark className="size-2.5" />
+                              pinned
                             </span>
                           ) : null}
                           {prob.topics.slice(0, 2).map((t) => (
@@ -102,6 +115,12 @@ export default async function PracticePage() {
                             </span>
                           ))}
                         </div>
+                        {regressed ? (
+                          <p className="mt-1.5 text-[11px] font-semibold text-rose-600 flex items-center gap-1">
+                            <TriangleAlert className="size-3" />
+                            Regressed on revision — solved before, weaker now
+                          </p>
+                        ) : null}
                       </div>
                     </div>
 
@@ -230,6 +249,11 @@ export default async function PracticePage() {
                       <div className="flex items-center gap-1.5">
                         <Icon className={`size-4 ${meta.accent}`} />
                         <span className="text-xs font-bold text-ink">{meta.label}</span>
+                        {attempt.isRevision ? (
+                          <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-500 border border-indigo-500/30">
+                            Revision
+                          </span>
+                        ) : null}
                       </div>
                       {attempt.minutes ? (
                         <span className="font-mono text-[10px] text-faint px-2 py-0.5 bg-raised rounded-md border border-line/40">
