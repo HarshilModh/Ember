@@ -19,6 +19,7 @@ import {
   problemsByTopic,
   recordAttempt,
   setPinnedForRevisit,
+  setTaskDueDate,
   tagsForTasks,
 } from "@/db/queries";
 import { logs, tags, taskTags, tasks, type Outcome } from "@/db/schema";
@@ -244,6 +245,23 @@ export function createEmberMcpServer(ownerId: string): McpServer {
       guard(
         () => deleteTask(ownerId, id),
         (row) => (row ? ok(`Deleted ${render(row)}`) : fail(`No task with id ${id}.`)),
+      ),
+  );
+
+  server.registerTool(
+    "reschedule_task",
+    {
+      title: "Reschedule a task",
+      description: "Change a task's due date — e.g. pushing an unfinished day's plan to tomorrow.",
+      inputSchema: {
+        id: z.number().int().describe("Task id"),
+        due_at: z.string().describe("ISO date or datetime, or 'today' / 'tomorrow'. Omit-equivalent: pass '' to clear the due date."),
+      },
+    },
+    async ({ id, due_at }) =>
+      guard(
+        () => setTaskDueDate(ownerId, id, due_at.trim() ? parseDue(due_at) : null),
+        (row) => (row ? ok(`Rescheduled ${render(row)}`) : fail(`No task with id ${id}.`)),
       ),
   );
 

@@ -155,6 +155,15 @@ export async function deleteTask(ownerId: string, id: number): Promise<Task | un
   });
 }
 
+export async function setTaskDueDate(ownerId: string, id: number, dueAt: Date | null): Promise<Task | undefined> {
+  const [row] = await db
+    .update(tasks)
+    .set({ dueAt })
+    .where(and(eq(tasks.id, id), eq(tasks.ownerId, ownerId)))
+    .returning();
+  return row;
+}
+
 export async function taskLogs(ownerId: string, taskId: number) {
   return db
     .select()
